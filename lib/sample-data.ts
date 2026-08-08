@@ -153,8 +153,14 @@ function buildDepthPlayers(): Player[] {
   );
 }
 
+export const starterPlayers: Player[] = [...featuredPlayers];
+
+export function isSyntheticDemoPlayer(player: Player): boolean {
+  return player.id.startsWith("demo-");
+}
+
 export const demoPlayers: Player[] = [
-  ...featuredPlayers,
+  ...starterPlayers,
   ...buildDepthPlayers(),
 ];
 

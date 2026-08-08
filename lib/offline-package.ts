@@ -8,7 +8,7 @@ import type {
 import {
   buildInitialDemoPicks,
   demoLeague,
-  demoPlayers,
+  starterPlayers,
 } from "./sample-data";
 
 export const OFFLINE_PACKAGE_VERSION = 1;
@@ -48,7 +48,7 @@ export function createDefaultOfflinePackage(): OfflineDraftPackage {
     version: OFFLINE_PACKAGE_VERSION,
     exportedAt: new Date(0).toISOString(),
     league: cloneLeague(demoLeague),
-    players: clonePlayers(demoPlayers),
+    players: clonePlayers(starterPlayers),
     events: eventsFromPicks(
       buildInitialDemoPicks(demoLeague.teamCount),
       "provider",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import type { ChangeEvent } from "react";
 import {
   applyRankingImport,
@@ -17,7 +17,11 @@ import type {
   RankingTable,
 } from "@/lib/import/rankings";
 import type { Player, PlayerPosition } from "@/lib/domain/types";
-import { getPositionRank, getPositionTier } from "@/lib/domain/rankings";
+import {
+  getMarketAdp,
+  getPositionRank,
+  getPositionTier,
+} from "@/lib/domain/rankings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -42,6 +46,15 @@ const mappingFields: Array<{ field: RankingField; label: string; required?: bool
 
 const ignoredReviewValue = "__ignored__";
 const positions: PlayerPosition[] = ["QB", "RB", "WR", "TE", "K", "DST"];
+type RankingSortKey =
+  | "rank"
+  | "player"
+  | "tier"
+  | "risk"
+  | "upside"
+  | "adp"
+  | "notes";
+type SortDirection = "ascending" | "descending";
 
 export function RankingsStudio({
   players,
@@ -60,6 +73,9 @@ export function RankingsStudio({
   const [udkTables, setUdkTables] = useState<RankingTable[]>([]);
   const [udkFileNames, setUdkFileNames] = useState<string[]>([]);
   const [activePosition, setActivePosition] = useState<PlayerPosition>("RB");
+  const [sortKey, setSortKey] = useState<RankingSortKey>("rank");
+  const [sortDirection, setSortDirection] =
+    useState<SortDirection>("ascending");
 
   const preview = useMemo(
     () =>
@@ -72,18 +88,42 @@ export function RankingsStudio({
           : null,
     [columnMap, importMode, players, table, udkTables],
   );
-  const visiblePlayers = [...players]
-    .filter((player) => player.positions.includes(activePosition))
-    .filter((player) =>
-      `${player.name} ${player.nflTeam} ${player.positions.join(" ")}`
-        .toLowerCase()
-        .includes(search.toLowerCase()),
-    )
-    .sort(
-      (a, b) =>
-        getPositionRank(a, players, activePosition) -
-        getPositionRank(b, players, activePosition),
-    );
+  const visiblePlayers = useMemo(() => {
+    const direction = sortDirection === "ascending" ? 1 : -1;
+    const numericValue = (player: Player): number | undefined => {
+      if (sortKey === "rank") {
+        return getPositionRank(player, players, activePosition);
+      }
+      if (sortKey === "tier") return getPositionTier(player, activePosition);
+      if (sortKey === "risk") return player.risk;
+      if (sortKey === "upside") return player.upside;
+      if (sortKey === "adp") return getMarketAdp(player, 12);
+      return undefined;
+    };
+    const textValue = (player: Player): string =>
+      sortKey === "notes" ? player.notes ?? "" : player.name;
+
+    return [...players]
+      .filter((player) => player.positions.includes(activePosition))
+      .filter((player) =>
+        `${player.name} ${player.nflTeam} ${player.positions.join(" ")}`
+          .toLowerCase()
+          .includes(search.toLowerCase()),
+      )
+      .sort((a, b) => {
+        if (sortKey === "player" || sortKey === "notes") {
+          return textValue(a).localeCompare(textValue(b)) * direction;
+        }
+        const left = numericValue(a);
+        const right = numericValue(b);
+        if (left === undefined && right === undefined) {
+          return a.name.localeCompare(b.name);
+        }
+        if (left === undefined) return 1;
+        if (right === undefined) return -1;
+        return (left - right) * direction || a.name.localeCompare(b.name);
+      });
+  }, [activePosition, players, search, sortDirection, sortKey]);
   const reviewState = useMemo(() => {
     const automaticIds = new Set(
       preview?.updates.map((update) => update.playerId) ?? [],
@@ -273,6 +313,37 @@ export function RankingsStudio({
               [activePosition]: Math.max(1, value),
             },
           },
+    );
+  }
+
+  function toggleSort(key: RankingSortKey) {
+    if (sortKey === key) {
+      setSortDirection((current) =>
+        current === "ascending" ? "descending" : "ascending",
+      );
+      return;
+    }
+    setSortKey(key);
+    setSortDirection(
+      key === "risk" || key === "upside" ? "descending" : "ascending",
+    );
+  }
+
+  function sortableHeader(key: RankingSortKey, label: string) {
+    const active = sortKey === key;
+    return (
+      <th aria-sort={active ? sortDirection : "none"}>
+        <button
+          className={`sortable-header ${active ? "active" : ""}`}
+          onClick={() => toggleSort(key)}
+          type="button"
+        >
+          <span>{label}</span>
+          <span aria-hidden="true" className="sort-indicator">
+            {active ? (sortDirection === "ascending" ? "↑" : "↓") : "↕"}
+          </span>
+        </button>
+      </th>
     );
   }
 
@@ -504,7 +575,7 @@ export function RankingsStudio({
               <span className="sr-only">Search players</span>
               <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search player, team, position" />
             </label>
-            <Button variant="outline" size="sm" onClick={onReset}>Restore demo rankings</Button>
+            <Button variant="outline" size="sm" onClick={onReset}>Restore starter rankings</Button>
           </div>
           <div className="position-tabs" aria-label="Ranking position">
             {positions.map((item) => (
@@ -520,19 +591,49 @@ export function RankingsStudio({
           </div>
           <div className="table-wrap ranking-table-wrap">
             <table className="ranking-table">
-              <thead><tr><th>{activePosition} rank</th><th>Player</th><th>Tier</th><th>Risk</th><th>Upside</th><th>Market ADP</th><th>Personal note</th></tr></thead>
+              <thead>
+                <tr>
+                  {sortableHeader("rank", `${activePosition} rank`)}
+                  {sortableHeader("player", "Player")}
+                  {sortableHeader("tier", "Tier")}
+                  {sortableHeader("risk", "Risk")}
+                  {sortableHeader("upside", "Upside")}
+                  {sortableHeader("adp", "Market ADP")}
+                  {sortableHeader("notes", "Personal note")}
+                </tr>
+              </thead>
               <tbody>
-                {visiblePlayers.map((player) => (
-                  <tr key={player.id}>
+                {visiblePlayers.map((player, index) => {
+                  const tier = getPositionTier(player, activePosition);
+                  const previousTier =
+                    index > 0
+                      ? getPositionTier(visiblePlayers[index - 1], activePosition)
+                      : undefined;
+                  const showTierDivider =
+                    (sortKey === "rank" || sortKey === "tier") &&
+                    tier !== previousTier;
+                  return (
+                  <Fragment key={player.id}>
+                    {showTierDivider && (
+                      <tr className={`tier-divider tier-color-${Math.min(tier, 8)}`}>
+                        <td colSpan={7}>
+                          <span>Tier {tier}</span>
+                          <small>{activePosition} rankings</small>
+                        </td>
+                      </tr>
+                    )}
+                  <tr className={`ranking-player-row tier-color-${Math.min(tier, 8)}`}>
                     <td><input className="number-editor rank-editor" type="number" min="1" value={getPositionRank(player, players, activePosition)} aria-label={`${player.name} ${activePosition} rank`} onChange={(event) => updatePositionRanking(player, "rank", Number(event.target.value))} /></td>
                     <td><div className="editable-player"><span className={`position ${player.positions[0].toLowerCase()}`}>{player.positions[0]}</span><span><strong>{player.name}</strong><small>{player.nflTeam} · Bye {player.byeWeek}</small></span></div></td>
-                    <td><input className="number-editor" type="number" min="1" value={getPositionTier(player, activePosition)} aria-label={`${player.name} ${activePosition} tier`} onChange={(event) => updatePositionRanking(player, "tier", Number(event.target.value))} /></td>
+                    <td><div className="tier-editor"><span className={`tier-chip tier-color-${Math.min(tier, 8)}`}>T{tier}</span><input className="number-editor" type="number" min="1" value={tier} aria-label={`${player.name} ${activePosition} tier`} onChange={(event) => updatePositionRanking(player, "tier", Number(event.target.value))} /></div></td>
                     <td>{player.risk === undefined ? "—" : (player.risk * 10).toFixed(1)}</td>
                     <td>{player.upside === undefined ? "—" : (player.upside * 10).toFixed(1)}</td>
                     <td><input className="number-editor adp-editor" type="number" min="1" step="0.1" value={player.adp} aria-label={`${player.name} ADP`} onChange={(event) => updatePlayer(player.id, { adp: Math.max(1, Number(event.target.value)) })} /></td>
                     <td><input className="note-editor" value={player.notes ?? ""} aria-label={`${player.name} note`} placeholder="Add your take…" onChange={(event) => updatePlayer(player.id, { notes: event.target.value })} /></td>
                   </tr>
-                ))}
+                  </Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>

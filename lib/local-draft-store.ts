@@ -2,11 +2,41 @@
 
 import type { OfflineDraftPackage } from "./offline-package";
 import { parseOfflinePackage } from "./offline-package";
+import { isSyntheticDemoPlayer } from "./sample-data";
 
 const STORAGE_KEY = "fantasy-draft-manager:offline-package:v1";
 const listeners = new Set<() => void>();
 let cachedRaw: string | null | undefined;
 let cachedValue: OfflineDraftPackage | null = null;
+
+function removeSyntheticDemoPlayers(
+  value: OfflineDraftPackage,
+): OfflineDraftPackage {
+  const removedPlayerIds = new Set(
+    value.players.filter(isSyntheticDemoPlayer).map((player) => player.id),
+  );
+  if (removedPlayerIds.size === 0) return value;
+  const removedEventIds = new Set(
+    value.events
+      .filter(
+        (event) =>
+          event.type === "pick_made" &&
+          removedPlayerIds.has(event.pick.playerId),
+      )
+      .map((event) => event.id),
+  );
+  return {
+    ...value,
+    players: value.players.filter(
+      (player) => !removedPlayerIds.has(player.id),
+    ),
+    events: value.events.filter((event) =>
+      event.type === "pick_made"
+        ? !removedPlayerIds.has(event.pick.playerId)
+        : !removedEventIds.has(event.targetEventId),
+    ),
+  };
+}
 
 function readStoredPackage(): OfflineDraftPackage | null {
   if (typeof window === "undefined") return null;
@@ -18,7 +48,7 @@ function readStoredPackage(): OfflineDraftPackage | null {
     return null;
   }
   try {
-    cachedValue = parseOfflinePackage(raw);
+    cachedValue = removeSyntheticDemoPlayers(parseOfflinePackage(raw));
   } catch {
     cachedValue = null;
   }
