@@ -22,13 +22,13 @@ export async function generateMetadata(): Promise<Metadata> {
       title,
       description,
       type: "website",
-      images: [{ url: "/og.png", width: 1536, height: 1024, alt: "Draft Intelligence fantasy football analytics dashboard" }],
+      images: [{ url: "/og-blue.png", width: 1536, height: 1024, alt: "Draft Intelligence fantasy football analytics dashboard" }],
     },
     twitter: {
       card: "summary_large_image",
       title,
       description,
-      images: ["/og.png"],
+      images: ["/og-blue.png"],
     },
   };
 }

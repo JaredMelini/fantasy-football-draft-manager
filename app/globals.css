@@ -29,8 +29,8 @@
   --card-foreground: #f3f6f8;
   --popover: #111720;
   --popover-foreground: #f3f6f8;
-  --primary: #c7f65b;
-  --primary-foreground: #101507;
+  --primary: #7aa2ff;
+  --primary-foreground: #07101f;
   --secondary: #1b2430;
   --secondary-foreground: #edf2f7;
   --muted-surface: #161d27;
@@ -41,7 +41,7 @@
   --destructive-foreground: #fff;
   --border: #263241;
   --input: #2b3747;
-  --ring: #c7f65b;
+  --ring: #7aa2ff;
   --ink: var(--foreground);
   --muted: var(--muted-foreground);
   --line: var(--border);
@@ -50,7 +50,7 @@
   --navy: #090d13;
   --navy-soft: #18212c;
   --lime: var(--primary);
-  --lime-dark: #91bf2f;
+  --lime-dark: #567bd8;
   --teal: #43d7c7;
   --teal-soft: rgba(67, 215, 199, 0.11);
   --orange: #f59e66;
@@ -2248,12 +2248,12 @@ body {
 }
 
 .sidebar-nav-item.active {
-  background: rgba(199, 246, 91, 0.1);
+  background: rgba(122, 162, 255, 0.1);
   color: var(--primary);
 }
 
 .sidebar-nav-item.active small {
-  color: #a8bf75;
+  color: #9aafe0;
 }
 
 .sidebar-footer {
@@ -2377,14 +2377,14 @@ body {
 }
 
 .pick-clock {
-  background: rgba(199, 246, 91, 0.09);
-  border: 1px solid rgba(199, 246, 91, 0.22);
+  background: rgba(122, 162, 255, 0.09);
+  border: 1px solid rgba(122, 162, 255, 0.22);
   color: var(--foreground);
 }
 
 .pick-clock span,
 .pick-clock small {
-  color: #a9c073;
+  color: #9db7ff;
 }
 
 .pick-clock.complete {
@@ -2486,7 +2486,7 @@ body {
 .alternatives > button:hover,
 .alternatives > button.selected,
 tr.top-player td {
-  background: rgba(199, 246, 91, 0.07);
+  background: rgba(122, 162, 255, 0.07);
 }
 
 table {
@@ -2534,7 +2534,7 @@ select:focus,
 input:focus,
 textarea:focus {
   border-color: var(--primary);
-  outline: 2px solid rgba(199, 246, 91, 0.12);
+  outline: 2px solid rgba(122, 162, 255, 0.12);
   outline-offset: 1px;
 }
 
@@ -2546,7 +2546,7 @@ textarea:focus {
 
 .primary-button:hover,
 .log-pick:hover {
-  background: #d5ff76;
+  background: #91b4ff;
 }
 
 .secondary-button {
@@ -2590,7 +2590,7 @@ textarea:focus {
 }
 
 .plan-banner {
-  background: linear-gradient(135deg, rgba(67, 215, 199, 0.08), rgba(199, 246, 91, 0.04));
+  background: linear-gradient(135deg, rgba(67, 215, 199, 0.08), rgba(122, 162, 255, 0.04));
   border-color: #27433f;
 }
 
@@ -2648,12 +2648,12 @@ textarea:focus {
 
 .team-board-card.user-team,
 .timeline-event.user-pick {
-  background: rgba(199, 246, 91, 0.05);
-  border-color: rgba(199, 246, 91, 0.42);
+  background: rgba(122, 162, 255, 0.05);
+  border-color: rgba(122, 162, 255, 0.42);
 }
 
 .team-board-card.user-team header {
-  background: rgba(199, 246, 91, 0.08);
+  background: rgba(122, 162, 255, 0.08);
 }
 
 .bridge-message {
