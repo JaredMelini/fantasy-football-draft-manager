@@ -39,6 +39,9 @@ test("server-renders the fantasy football draft room", async () => {
   assert.match(html, /Risk profile/);
   assert.match(html, /Decision Engine v2/);
   assert.match(html, /Draft now versus wait comparison/);
+  assert.match(html, /Best overall/);
+  assert.match(html, /Position pivot/);
+  assert.match(html, /Completed roster forecast/);
   assert.match(html, /Available players/);
   assert.match(html, /Draft event log active/);
   assert.match(html, /Offline companion ready/);

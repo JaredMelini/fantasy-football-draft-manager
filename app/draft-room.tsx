@@ -13,6 +13,7 @@ import {
   replayDraftEvents,
   validateNextPick,
 } from "@/lib/domain/draft-session";
+import { analyzeCandidateRollouts } from "@/lib/domain/candidate-rollout";
 import { recommendPlayers } from "@/lib/domain/recommendation";
 import { assignRoster } from "@/lib/domain/roster";
 import { calculateFantasyPoints } from "@/lib/domain/scoring";
@@ -117,6 +118,9 @@ export function DraftRoom({
           league.draftType,
         )
       : currentTurnOffset;
+  const decisionOverall = currentTeam.isUser
+    ? currentOverall
+    : currentOverall + currentTurnOffset;
   const recommendations = draftComplete
     ? []
     : recommendPlayers({
@@ -131,6 +135,20 @@ export function DraftRoom({
         riskTolerance,
         limit: players.length,
       });
+  const rolloutAnalysis = draftComplete
+    ? { summaries: [], lenses: [] }
+    : analyzeCandidateRollouts({
+        recommendations,
+        players,
+        league,
+        picks,
+        teams,
+        userTeamId: userTeam.id,
+        userRoster,
+        decisionOverall,
+        seed,
+        riskTolerance,
+      });
   const best = recommendations[0];
   const availablePlayers = players
     .filter((player) => !draftedIds.has(player.id) && !player.excluded)
@@ -144,6 +162,11 @@ export function DraftRoom({
         (recommendation) => recommendation.player.id === selectedPlayerId,
       ) ?? best
     : best;
+  const selectedRollout = selected
+    ? rolloutAnalysis.summaries.find(
+        (summary) => summary.playerId === selected.player.id,
+      )
+    : undefined;
   const capturePreview = useMemo(
     () => parseDraftPickCapture(captureText, players, draftedIds),
     [captureText, draftedIds, players],
@@ -280,6 +303,29 @@ export function DraftRoom({
             {selected && <span className="score-badge">{selected.breakdown.total}</span>}
           </div>
 
+          {rolloutAnalysis.lenses.length > 0 && (
+            <div className="recommendation-lenses" aria-label="Recommendation comparison views">
+              {rolloutAnalysis.lenses.map((lens) => {
+                const recommendation = recommendations.find(
+                  ({ player }) => player.id === lens.playerId,
+                );
+                if (!recommendation) return null;
+                return (
+                  <button
+                    className={selected?.player.id === lens.playerId ? "active" : ""}
+                    key={lens.key}
+                    onClick={() => setSelectedPlayerId(lens.playerId)}
+                    type="button"
+                  >
+                    <span>{lens.label}</span>
+                    <strong>{recommendation.player.name}</strong>
+                    <small>{lens.metric}</small>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
           {selected ? (
             <>
               <div className="player-meta large">
@@ -307,6 +353,22 @@ export function DraftRoom({
                 <div><span>Draft now</span><strong>{selected.player.name}</strong><small>Lock in a {selected.breakdown.total} decision score</small></div>
                 <div><span>If you wait</span><strong>{selected.waitAnalysis.expectedAlternativeName ?? "No reliable fallback"}</strong><small>{selected.waitAnalysis.opportunityLoss > 0 ? `${selected.waitAnalysis.opportunityLoss} expected score lost` : "Comparable value should remain"}</small></div>
               </div>
+              {selectedRollout && (
+                <div className="roster-outlook" aria-label="Completed roster forecast">
+                  <div>
+                    <span>Completed roster forecast</span>
+                    <strong>{selectedRollout.averageRosterGrade}</strong>
+                    <small>average grade</small>
+                  </div>
+                  <dl>
+                    <div><dt>Floor</dt><dd>{selectedRollout.floorRosterGrade}</dd></div>
+                    <div><dt>Ceiling</dt><dd>{selectedRollout.ceilingRosterGrade}</dd></div>
+                    <div><dt>Starter pts</dt><dd>{selectedRollout.averageStarterPoints}</dd></div>
+                    <div><dt>Filled</dt><dd>{Math.round(selectedRollout.completionRate * 100)}%</dd></div>
+                  </dl>
+                  <p>Based on {selectedRollout.simulations} completed drafts using balanced, needs-first, and value-first future picks.</p>
+                </div>
+              )}
               <div className="factor-grid" aria-label="Recommendation factors">
                 <div><span>Above replacement</span><strong>+{selected.breakdown.replacementValue}</strong></div>
                 <div><span>Roster fit</span><strong>+{selected.breakdown.rosterFit}</strong></div>

@@ -4,6 +4,7 @@ import {
   assignedStarterCount,
   teamForOverallPick,
 } from "../../lib/domain/draft";
+import { analyzeCandidateRollouts } from "../../lib/domain/candidate-rollout";
 import { recommendPlayers } from "../../lib/domain/recommendation";
 import {
   calculateFantasyPoints,
@@ -116,4 +117,51 @@ test("risk preferences change the penalty without changing player data", () => {
 
   assert.ok(safeMccaffrey.breakdown.riskPenalty > upsideMccaffrey.breakdown.riskPenalty);
   assert.equal(safeMccaffrey.player.risk, upsideMccaffrey.player.risk);
+});
+
+test("completed-roster rollouts produce deterministic comparison lenses", () => {
+  const recommendations = recommendPlayers({
+    players: demoPlayers,
+    league: demoLeague,
+    picks: initialDemoPicks,
+    userRoster: [],
+    currentOverall: 7,
+    picksUntilNextTurn: 7,
+    teams: demoTeams,
+    seed: "roster-rollout",
+    limit: demoPlayers.length,
+  });
+  const input = {
+    recommendations,
+    players: demoPlayers,
+    league: demoLeague,
+    picks: initialDemoPicks,
+    teams: demoTeams,
+    userTeamId: "user",
+    userRoster: [],
+    decisionOverall: 7,
+    seed: "roster-rollout",
+    simulationCount: 24,
+    candidateLimit: 8,
+  };
+  const started = performance.now();
+  const first = analyzeCandidateRollouts(input);
+  const second = analyzeCandidateRollouts(input);
+
+  assert.deepEqual(first, second);
+  assert.deepEqual(
+    first.lenses.map(({ key }) => key),
+    ["best", "safe", "upside", "pivot"],
+  );
+  assert.equal(first.summaries.length, 8);
+  assert.ok(first.summaries.every((summary) => summary.completionRate >= 0.8));
+  assert.ok(first.summaries.every((summary) => summary.floorRosterGrade <= summary.ceilingRosterGrade));
+  const bestPlayer = demoPlayers.find(
+    (player) => player.id === first.lenses[0].playerId,
+  )!;
+  const pivotPlayer = demoPlayers.find(
+    (player) => player.id === first.lenses[3].playerId,
+  )!;
+  assert.notEqual(bestPlayer.positions[0], pivotPlayer.positions[0]);
+  assert.ok(performance.now() - started < 1000);
 });

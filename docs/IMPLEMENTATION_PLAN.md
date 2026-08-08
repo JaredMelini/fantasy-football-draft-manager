@@ -348,15 +348,15 @@ Official references: [Yahoo Fantasy API documentation](https://sports.yahoo.com/
 - Sync health and reconciliation
 - Yahoo feasibility report from real test drafts
 
-### M4 — Advanced decision engine (in progress)
+### M4 — Advanced decision engine (complete)
 
 - [x] Dynamic replacement baselines
 - [x] ADP availability model adjusted for live draft pressure
 - [x] Opponent-needs and recent positional-run model
 - [x] Seeded next-pick wait scenarios and fallback analysis
 - [x] Risk preferences, confidence, and component explanations
-- [ ] Completed-roster candidate rollouts and strategy backtesting
-- [ ] Best-overall, safest, upside, and positional-pivot comparison views
+- [x] Completed-roster candidate rollouts and strategy backtesting
+- [x] Best-overall, safest, upside, and positional-pivot comparison views
 
 ### M5 — Production hardening
 
@@ -401,3 +401,6 @@ Official references: [Yahoo Fantasy API documentation](https://sports.yahoo.com/
 - [x] Dynamic league- and draft-state replacement baselines added to recommendations.
 - [x] Decision Engine v2 with opponent pressure, positional runs, risk profiles, and 128 deterministic wait scenarios per candidate.
 - [x] Draft-now, lean-now, and can-wait guidance with confidence and expected fallback comparisons.
+- [x] Completed-roster forecasts across balanced, needs-first, and value-first future-pick strategies.
+- [x] Best Overall, Safest, Upside, and Positional Pivot recommendation lenses with floor and ceiling grades.
+- [x] M4 deterministic rollout, performance, type, lint, and rendered-output verification.
