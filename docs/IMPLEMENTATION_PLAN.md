@@ -404,3 +404,4 @@ Official references: [Yahoo Fantasy API documentation](https://sports.yahoo.com/
 - [x] Completed-roster forecasts across balanced, needs-first, and value-first future-pick strategies.
 - [x] Best Overall, Safest, Upside, and Positional Pivot recommendation lenses with floor and ceiling grades.
 - [x] M4 deterministic rollout, performance, type, lint, and rendered-output verification.
+- [x] Expandable rankings-import review with suggested matches, manual assignment, duplicate protection, and explicit ignore decisions.

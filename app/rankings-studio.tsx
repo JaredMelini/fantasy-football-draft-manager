@@ -7,6 +7,7 @@ import {
   buildRankingImport,
   guessRankingColumnMap,
   parseDelimitedRankings,
+  rankingUpdateFromReview,
   tableFromRows,
 } from "@/lib/import/rankings";
 import type {
@@ -35,6 +36,8 @@ const mappingFields: Array<{ field: RankingField; label: string; required?: bool
   { field: "externalId", label: "External ID" },
 ];
 
+const ignoredReviewValue = "__ignored__";
+
 export function RankingsStudio({
   players,
   onPlayersChange,
@@ -46,6 +49,8 @@ export function RankingsStudio({
   const [fileName, setFileName] = useState("");
   const [fileError, setFileError] = useState("");
   const [importApplied, setImportApplied] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [reviewDecisions, setReviewDecisions] = useState<Record<string, string>>({});
 
   const preview = useMemo(
     () => (table ? buildRankingImport(table, players, columnMap) : null),
@@ -58,6 +63,49 @@ export function RankingsStudio({
         .includes(search.toLowerCase()),
     )
     .sort((a, b) => a.userRank - b.userRank);
+  const reviewState = useMemo(() => {
+    const automaticIds = new Set(
+      preview?.updates.map((update) => update.playerId) ?? [],
+    );
+    const selectedByPlayer = new Map<string, string[]>();
+    for (const row of preview?.reviewRows ?? []) {
+      const decision = reviewDecisions[row.id];
+      if (!decision || decision === ignoredReviewValue) continue;
+      selectedByPlayer.set(decision, [
+        ...(selectedByPlayer.get(decision) ?? []),
+        row.id,
+      ]);
+    }
+    const conflictRows = new Set<string>();
+    for (const [playerId, rowIds] of selectedByPlayer) {
+      if (automaticIds.has(playerId) || rowIds.length > 1) {
+        rowIds.forEach((rowId) => conflictRows.add(rowId));
+      }
+    }
+    const manualUpdates = (preview?.reviewRows ?? []).flatMap((row) => {
+      const playerId = reviewDecisions[row.id];
+      if (
+        !playerId ||
+        playerId === ignoredReviewValue ||
+        conflictRows.has(row.id)
+      ) {
+        return [];
+      }
+      const player = players.find((candidate) => candidate.id === playerId);
+      return player ? [rankingUpdateFromReview(row, player)] : [];
+    });
+    const unresolvedRows = (preview?.reviewRows ?? []).filter(
+      (row) => !reviewDecisions[row.id],
+    );
+    return {
+      automaticIds,
+      selectedByPlayer,
+      conflictRows,
+      manualUpdates,
+      unresolvedRows,
+      updates: [...(preview?.updates ?? []), ...manualUpdates],
+    };
+  }, [players, preview, reviewDecisions]);
 
   async function handleFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -79,6 +127,8 @@ export function RankingsStudio({
       setTable(parsed);
       setColumnMap(guessRankingColumnMap(parsed.headers));
       setFileName(file.name);
+      setReviewDecisions({});
+      setReviewOpen(true);
     } catch (error) {
       setTable(null);
       setFileName("");
@@ -94,12 +144,37 @@ export function RankingsStudio({
       [field]: value === "" ? undefined : Number(value),
     }));
     setImportApplied(false);
+    setReviewDecisions({});
   }
 
   function applyImport() {
-    if (!preview || preview.errors.length > 0 || preview.updates.length === 0) return;
-    onPlayersChange(applyRankingImport(players, preview.updates));
+    if (
+      !preview ||
+      preview.errors.length > 0 ||
+      reviewState.unresolvedRows.length > 0 ||
+      reviewState.conflictRows.size > 0 ||
+      reviewState.updates.length === 0
+    ) return;
+    onPlayersChange(applyRankingImport(players, reviewState.updates));
     setImportApplied(true);
+  }
+
+  function setReviewDecision(rowId: string, value: string) {
+    setReviewDecisions((current) => ({ ...current, [rowId]: value }));
+    setImportApplied(false);
+  }
+
+  function ignoreUnresolvedRows() {
+    if (!preview) return;
+    setReviewDecisions((current) => ({
+      ...current,
+      ...Object.fromEntries(
+        preview.reviewRows
+          .filter((row) => !current[row.id])
+          .map((row) => [row.id, ignoredReviewValue]),
+      ),
+    }));
+    setImportApplied(false);
   }
 
   function updatePlayer(playerId: string, changes: Partial<Player>) {
@@ -166,22 +241,133 @@ export function RankingsStudio({
 
               {preview && (
                 <div className="import-summary">
-                  <div><strong>{preview.updates.length}</strong><span>matched</span></div>
+                  <div><strong>{reviewState.updates.length}</strong><span>ready</span></div>
                   <div><strong>{preview.unmatched.length}</strong><span>unmatched</span></div>
                   <div><strong>{preview.duplicates.length}</strong><span>duplicates</span></div>
                   <div><strong>{preview.errors.length}</strong><span>errors</span></div>
                 </div>
               )}
               {preview?.errors.map((error) => <p className="form-error compact" key={error}>{error}</p>)}
-              {preview && preview.unmatched.length > 0 && (
-                <p className="import-detail"><strong>Review unmatched:</strong> {preview.unmatched.slice(0, 4).join(", ")}{preview.unmatched.length > 4 ? "…" : ""}</p>
+              {preview && preview.reviewRows.length > 0 && (
+                <div className="import-review">
+                  <div className="import-review-heading">
+                    <div>
+                      <strong>Match review</strong>
+                      <small>{reviewState.unresolvedRows.length} of {preview.reviewRows.length} still need a decision</small>
+                    </div>
+                    <Button variant="outline" size="sm" onClick={() => setReviewOpen((current) => !current)}>
+                      {reviewOpen ? "Hide review" : `Review ${preview.reviewRows.length} rows`}
+                    </Button>
+                  </div>
+
+                  {reviewOpen && (
+                    <div className="review-row-list">
+                      {preview.reviewRows.map((row) => {
+                        const decision = reviewDecisions[row.id];
+                        const selectedPlayer = players.find(
+                          (player) => player.id === decision,
+                        );
+                        const ignored = decision === ignoredReviewValue;
+                        const conflict = reviewState.conflictRows.has(row.id);
+                        const playerIsUsedElsewhere = (playerId: string) =>
+                          reviewState.automaticIds.has(playerId) ||
+                          (reviewState.selectedByPlayer.get(playerId) ?? []).some(
+                            (rowId) => rowId !== row.id,
+                          );
+                        return (
+                          <article className={`review-row ${ignored ? "ignored" : ""} ${conflict ? "conflict" : ""}`} key={row.id}>
+                            <header>
+                              <span className={`review-status ${row.status}`}>{row.status}</span>
+                              <small>CSV row {row.rowNumber} · rank {row.rank}{row.tier ? ` · tier ${row.tier}` : ""}</small>
+                            </header>
+                            <strong>{row.sourceName}</strong>
+                            <p>{[row.sourceTeam, row.sourcePosition].filter(Boolean).join(" · ") || "No team or position supplied"}</p>
+
+                            <div className="suggested-matches">
+                              <span>Suggested matches</span>
+                              <div>
+                                {row.suggestions.map((suggestion) => (
+                                  <button
+                                    disabled={playerIsUsedElsewhere(suggestion.playerId)}
+                                    key={suggestion.playerId}
+                                    onClick={() => setReviewDecision(row.id, suggestion.playerId)}
+                                    type="button"
+                                  >
+                                    <strong>{suggestion.playerName}</strong>
+                                    <small>{suggestion.team} · {suggestion.position} · {suggestion.score}%</small>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+
+                            <label className="manual-match-row">
+                              <span>Manual player match</span>
+                              <select
+                                aria-label={`Match ${row.sourceName} to a player`}
+                                value={ignored ? "" : decision ?? ""}
+                                onChange={(event) => setReviewDecision(row.id, event.target.value)}
+                              >
+                                <option value="">Choose player…</option>
+                                {[...players]
+                                  .sort((a, b) => a.userRank - b.userRank)
+                                  .map((player) => (
+                                    <option
+                                      disabled={playerIsUsedElsewhere(player.id)}
+                                      key={player.id}
+                                      value={player.id}
+                                    >
+                                      {player.name} — {player.nflTeam} · {player.positions.join("/")}
+                                    </option>
+                                  ))}
+                              </select>
+                            </label>
+
+                            <div className="review-row-footer">
+                              <span className={conflict ? "review-conflict" : "review-resolution"}>
+                                {conflict
+                                  ? "That player is already assigned to another row."
+                                  : ignored
+                                    ? "This row will be ignored."
+                                    : selectedPlayer
+                                      ? `Will import as ${selectedPlayer.name}.`
+                                      : "Choose a match or ignore this row."}
+                              </span>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setReviewDecision(row.id, ignored ? "" : ignoredReviewValue)}
+                              >
+                                {ignored ? "Undo ignore" : "Ignore"}
+                              </Button>
+                            </div>
+                          </article>
+                        );
+                      })}
+                      {reviewState.unresolvedRows.length > 0 && (
+                        <Button variant="ghost" size="sm" className="w-full" onClick={ignoreUnresolvedRows}>
+                          Ignore all unresolved rows
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </div>
               )}
               <Button
                 className="w-full"
-                disabled={!preview || preview.errors.length > 0 || preview.updates.length === 0}
+                disabled={
+                  !preview ||
+                  preview.errors.length > 0 ||
+                  reviewState.unresolvedRows.length > 0 ||
+                  reviewState.conflictRows.size > 0 ||
+                  reviewState.updates.length === 0
+                }
                 onClick={applyImport}
               >
-                {importApplied ? "Import applied" : `Apply ${preview?.updates.length ?? 0} matched rows`}
+                {importApplied
+                  ? "Import applied"
+                  : reviewState.unresolvedRows.length > 0
+                    ? `Review ${reviewState.unresolvedRows.length} remaining rows`
+                    : `Apply ${reviewState.updates.length} resolved rows`}
               </Button>
             </div>
           )}

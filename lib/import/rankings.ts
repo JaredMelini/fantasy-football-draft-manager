@@ -19,10 +19,33 @@ export interface RankingImportUpdate {
   notes?: string;
 }
 
+export interface RankingReviewSuggestion {
+  playerId: string;
+  playerName: string;
+  team: string;
+  position: string;
+  score: number;
+}
+
+export interface RankingReviewRow {
+  id: string;
+  status: "unmatched" | "duplicate";
+  rowNumber: number;
+  sourceName: string;
+  sourceTeam?: string;
+  sourcePosition?: string;
+  rank: number;
+  tier?: number;
+  adp?: number;
+  notes?: string;
+  suggestions: RankingReviewSuggestion[];
+}
+
 export interface RankingImportResult {
   updates: RankingImportUpdate[];
   unmatched: string[];
   duplicates: string[];
+  reviewRows: RankingReviewRow[];
   errors: string[];
 }
 
@@ -51,6 +74,65 @@ function numeric(value: unknown): number | undefined {
   if (value === null || value === undefined || value === "") return undefined;
   const parsed = Number(String(value).replace(/[^0-9.-]/g, ""));
   return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function editDistance(first: string, second: string): number {
+  const previous = Array.from({ length: second.length + 1 }, (_, index) => index);
+  for (let firstIndex = 1; firstIndex <= first.length; firstIndex += 1) {
+    const current = [firstIndex];
+    for (let secondIndex = 1; secondIndex <= second.length; secondIndex += 1) {
+      const substitution =
+        previous[secondIndex - 1] +
+        (first[firstIndex - 1] === second[secondIndex - 1] ? 0 : 1);
+      current[secondIndex] = Math.min(
+        previous[secondIndex] + 1,
+        current[secondIndex - 1] + 1,
+        substitution,
+      );
+    }
+    previous.splice(0, previous.length, ...current);
+  }
+  return previous[second.length];
+}
+
+function suggestPlayers(
+  row: RankingTable["rows"][number],
+  map: RankingColumnMap,
+  players: Player[],
+): RankingReviewSuggestion[] {
+  const sourceName = normalize(cell(row, map, "player"));
+  const sourceTeam = normalize(cell(row, map, "team"));
+  const sourcePosition = normalize(cell(row, map, "position")).toUpperCase();
+
+  return players
+    .map((player) => {
+      const playerName = normalize(player.name);
+      const longestName = Math.max(sourceName.length, playerName.length, 1);
+      const nameScore = sourceName
+        ? 1 - editDistance(sourceName, playerName) / longestName
+        : 0;
+      const teamBonus =
+        sourceTeam && normalize(player.nflTeam) === sourceTeam ? 0.14 : 0;
+      const positionBonus =
+        sourcePosition &&
+        player.positions.some((position) => position === sourcePosition)
+          ? 0.14
+          : 0;
+      return {
+        playerId: player.id,
+        playerName: player.name,
+        team: player.nflTeam,
+        position: player.positions.join("/"),
+        score: Math.round(Math.min(1, nameScore + teamBonus + positionBonus) * 100),
+      };
+    })
+    .sort(
+      (a, b) =>
+        b.score - a.score ||
+        players.find((player) => player.id === a.playerId)!.userRank -
+          players.find((player) => player.id === b.playerId)!.userRank,
+    )
+    .slice(0, 3);
 }
 
 function detectDelimiter(text: string): string {
@@ -181,6 +263,7 @@ export function buildRankingImport(
     updates: [],
     unmatched: [],
     duplicates: [],
+    reviewRows: [],
     errors: [],
   };
   if (map.player === undefined && map.externalId === undefined) {
@@ -202,10 +285,53 @@ export function buildRankingImport(
     const matched = matchPlayer(row, map, players);
     if (!matched) {
       result.unmatched.push(sourceName);
+      result.reviewRows.push({
+        id: `unmatched-${rowIndex + 2}`,
+        status: "unmatched",
+        rowNumber: rowIndex + 2,
+        sourceName,
+        sourceTeam: String(cell(row, map, "team") ?? "").trim() || undefined,
+        sourcePosition:
+          String(cell(row, map, "position") ?? "").trim() || undefined,
+        rank,
+        tier: numeric(cell(row, map, "tier")),
+        adp: numeric(cell(row, map, "adp")),
+        notes: String(cell(row, map, "notes") ?? "").trim() || undefined,
+        suggestions: suggestPlayers(row, map, players),
+      });
       return;
     }
     if (seenPlayerIds.has(matched.id)) {
       result.duplicates.push(sourceName);
+      const suggestions = suggestPlayers(row, map, players);
+      const matchedSuggestion = suggestions.find(
+        (suggestion) => suggestion.playerId === matched.id,
+      ) ?? {
+        playerId: matched.id,
+        playerName: matched.name,
+        team: matched.nflTeam,
+        position: matched.positions.join("/"),
+        score: 100,
+      };
+      result.reviewRows.push({
+        id: `duplicate-${rowIndex + 2}`,
+        status: "duplicate",
+        rowNumber: rowIndex + 2,
+        sourceName,
+        sourceTeam: String(cell(row, map, "team") ?? "").trim() || undefined,
+        sourcePosition:
+          String(cell(row, map, "position") ?? "").trim() || undefined,
+        rank,
+        tier: numeric(cell(row, map, "tier")),
+        adp: numeric(cell(row, map, "adp")),
+        notes: String(cell(row, map, "notes") ?? "").trim() || undefined,
+        suggestions: [
+          matchedSuggestion,
+          ...suggestions.filter(
+            (suggestion) => suggestion.playerId !== matched.id,
+          ),
+        ].slice(0, 3),
+      });
       return;
     }
     seenPlayerIds.add(matched.id);
@@ -221,6 +347,21 @@ export function buildRankingImport(
   });
 
   return result;
+}
+
+export function rankingUpdateFromReview(
+  row: RankingReviewRow,
+  player: Player,
+): RankingImportUpdate {
+  return {
+    playerId: player.id,
+    sourceName: row.sourceName,
+    matchedName: player.name,
+    rank: row.rank,
+    tier: row.tier,
+    adp: row.adp,
+    notes: row.notes,
+  };
 }
 
 export function applyRankingImport(

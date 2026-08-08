@@ -1129,6 +1129,182 @@ input {
   text-transform: uppercase;
 }
 
+.import-review {
+  border-top: 1px solid var(--border);
+  margin: 14px 0;
+  padding-top: 14px;
+}
+
+.import-review-heading,
+.review-row-footer {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.import-review-heading > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.import-review-heading strong {
+  color: var(--foreground);
+  font-size: 11px;
+}
+
+.import-review-heading small {
+  color: var(--muted-foreground);
+  font-size: 8px;
+}
+
+.review-row-list {
+  display: grid;
+  gap: 9px;
+  margin-top: 12px;
+  max-height: min(540px, 58vh);
+  overflow-y: auto;
+  padding-right: 3px;
+}
+
+.review-row {
+  background: #121922;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  padding: 11px;
+}
+
+.review-row.ignored {
+  opacity: 0.62;
+}
+
+.review-row.conflict {
+  border-color: rgba(244, 113, 106, 0.65);
+}
+
+.review-row > header {
+  align-items: center;
+  display: flex;
+  gap: 7px;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.review-row > header small,
+.review-row > p {
+  color: var(--muted-foreground);
+  font-size: 8px;
+}
+
+.review-row > strong {
+  color: var(--foreground);
+  display: block;
+  font-size: 11px;
+}
+
+.review-row > p {
+  margin: 3px 0 0;
+}
+
+.review-status {
+  border-radius: 999px;
+  font-size: 7px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  padding: 4px 6px;
+  text-transform: uppercase;
+}
+
+.review-status.unmatched {
+  background: rgba(245, 158, 102, 0.13);
+  color: #f7b080;
+}
+
+.review-status.duplicate {
+  background: rgba(244, 113, 106, 0.12);
+  color: #f59b95;
+}
+
+.suggested-matches {
+  margin-top: 11px;
+}
+
+.suggested-matches > span,
+.manual-match-row > span {
+  color: var(--muted-foreground);
+  display: block;
+  font-size: 8px;
+  font-weight: 800;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+
+.suggested-matches > div {
+  display: grid;
+  gap: 5px;
+}
+
+.suggested-matches button {
+  background: rgba(122, 162, 255, 0.05);
+  border: 1px solid rgba(122, 162, 255, 0.16);
+  border-radius: 8px;
+  color: var(--foreground);
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  padding: 7px 8px;
+  text-align: left;
+}
+
+.suggested-matches button:hover {
+  background: rgba(122, 162, 255, 0.1);
+  border-color: rgba(122, 162, 255, 0.34);
+}
+
+.suggested-matches button:disabled {
+  cursor: not-allowed;
+  opacity: 0.38;
+}
+
+.suggested-matches button strong {
+  font-size: 9px;
+}
+
+.suggested-matches button small {
+  color: var(--muted-foreground);
+  font-size: 7px;
+}
+
+.manual-match-row {
+  display: block;
+  margin-top: 10px;
+}
+
+.manual-match-row select {
+  font-size: 9px;
+  min-height: 34px;
+  padding: 7px;
+  width: 100%;
+}
+
+.review-row-footer {
+  border-top: 1px solid var(--border);
+  margin-top: 10px;
+  padding-top: 8px;
+}
+
+.review-resolution,
+.review-conflict {
+  color: var(--muted-foreground);
+  font-size: 8px;
+  line-height: 1.35;
+}
+
+.review-conflict {
+  color: #f59b95;
+}
+
 .primary-button:disabled {
   cursor: not-allowed;
   opacity: 0.45;

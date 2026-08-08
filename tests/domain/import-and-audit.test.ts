@@ -6,6 +6,7 @@ import {
   buildRankingImport,
   guessRankingColumnMap,
   parseDelimitedRankings,
+  rankingUpdateFromReview,
   tableFromRows,
 } from "../../lib/import/rankings";
 import { demoLeague, demoPlayers } from "../../lib/sample-data";
@@ -49,6 +50,38 @@ test("reports duplicate and unmatched ranking rows without silent discards", () 
   assert.deepEqual(result.duplicates, ["Bijan Robinson"]);
   assert.deepEqual(result.unmatched, ["Unknown Player"]);
   assert.equal(result.updates.length, 1);
+  assert.deepEqual(
+    result.reviewRows.map(({ status, rowNumber }) => ({ status, rowNumber })),
+    [
+      { status: "duplicate", rowNumber: 3 },
+      { status: "unmatched", rowNumber: 4 },
+    ],
+  );
+  assert.equal(result.reviewRows[0].suggestions[0].playerId, "bijan");
+});
+
+test("suggests close player matches and safely applies a reviewed row", () => {
+  const table = parseDelimitedRankings(
+    "Rank,Player,Team,Pos,Tier,ADP\n4,Bjan Robinson,ATL,RB,2,5.5",
+  );
+  const result = buildRankingImport(
+    table,
+    demoPlayers,
+    guessRankingColumnMap(table.headers),
+  );
+  const review = result.reviewRows[0];
+
+  assert.equal(review.status, "unmatched");
+  assert.equal(review.suggestions[0].playerId, "bijan");
+  assert.ok(review.suggestions[0].score >= 80);
+
+  const bijan = demoPlayers.find((player) => player.id === "bijan")!;
+  const update = rankingUpdateFromReview(review, bijan);
+  const updated = applyRankingImport(demoPlayers, [update]);
+  const imported = updated.find((player) => player.id === "bijan")!;
+  assert.equal(imported.userRank, 4);
+  assert.equal(imported.tier, 2);
+  assert.equal(imported.adp, 5.5);
 });
 
 test("normalizes spreadsheet rows into the universal ranking table", () => {

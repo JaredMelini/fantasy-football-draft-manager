@@ -13,7 +13,7 @@ The application will use league-specific settings and live draft state to produc
 ## Planned features
 
 - Import league size, roster positions, scoring categories, scoring modifiers, teams, rosters, and documented draft results through the Yahoo Fantasy Sports API.
-- Support user-supplied player rankings through CSV or spreadsheet imports.
+- Support user-supplied player rankings through CSV or spreadsheet imports, including suggested matches and manual review for unmatched or duplicate rows.
 - Allow rankings, tiers, preferences, and player notes to be edited manually.
 - Recalculate player value for the league's exact scoring and roster configuration.
 - Track drafted players and each team's roster during a draft when supported by the Yahoo API.
