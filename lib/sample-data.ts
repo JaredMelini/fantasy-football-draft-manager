@@ -89,18 +89,30 @@ export const demoPlayers: Player[] = [
   player("daniels", "Jayden Daniels", "WAS", "QB", 12, 33.4, 24, 4, 0.16, { passingYards: 3740, passingTouchdowns: 25, interceptions: 9, rushingYards: 720, rushingTouchdowns: 7, fumblesLost: 2 }),
 ];
 
-export const demoTeams: DraftTeam[] = Array.from({ length: 10 }, (_, index) => ({
-  id: index === 6 ? "user" : `team-${index + 1}`,
-  name: index === 6 ? "My Team" : `Team ${index + 1}`,
-  draftSlot: index + 1,
-  isUser: index === 6,
-}));
+export function buildDemoTeams(teamCount: number): DraftTeam[] {
+  const userIndex = Math.min(6, teamCount - 1);
+  return Array.from({ length: teamCount }, (_, index) => ({
+    id: index === userIndex ? "user" : `team-${index + 1}`,
+    name: index === userIndex ? "My Team" : `Team ${index + 1}`,
+    draftSlot: index + 1,
+    isUser: index === userIndex,
+  }));
+}
 
-export const initialDemoPicks: DraftPick[] = [
-  { overall: 1, round: 1, teamId: "team-1", playerId: "bijan" },
-  { overall: 2, round: 1, teamId: "team-2", playerId: "gibbs" },
-  { overall: 3, round: 1, teamId: "team-3", playerId: "chase" },
-  { overall: 4, round: 1, teamId: "team-4", playerId: "jefferson" },
-  { overall: 5, round: 1, teamId: "team-5", playerId: "lamb" },
-  { overall: 6, round: 1, teamId: "team-6", playerId: "saquon" },
-];
+export function buildInitialDemoPicks(teamCount: number): DraftPick[] {
+  const teams = buildDemoTeams(teamCount);
+  const playerIds = ["bijan", "gibbs", "chase", "jefferson", "lamb", "saquon"];
+  const picksBeforeUser = Math.min(
+    teams.find((team) => team.isUser)!.draftSlot - 1,
+    playerIds.length,
+  );
+  return playerIds.slice(0, picksBeforeUser).map((playerId, index) => ({
+    overall: index + 1,
+    round: 1,
+    teamId: teams[index].id,
+    playerId,
+  }));
+}
+
+export const demoTeams = buildDemoTeams(demoLeague.teamCount);
+export const initialDemoPicks = buildInitialDemoPicks(demoLeague.teamCount);

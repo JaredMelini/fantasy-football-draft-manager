@@ -291,7 +291,7 @@ If live results are delayed, automatic mode will show its age and manual capture
 
 ## 12. Delivery milestones
 
-### M0 — Foundation (in progress)
+### M0 — Foundation (complete)
 
 - Project runtime and design system
 - Domain types
@@ -301,7 +301,7 @@ If live results are delayed, automatic mode will show its age and manual capture
 - Interactive manual draft demo
 - Unit and rendered-output tests
 
-### M1 — Settings and rankings
+### M1 — Settings and rankings (complete)
 
 - League settings editor and audit
 - CSV import and player matching
@@ -355,3 +355,8 @@ If live results are delayed, automatic mode will show its age and manual capture
 - [x] Interactive manual draft demo with opponent simulation, undo, and reset.
 - [x] Domain tests and rendered-output build verification.
 - [x] First tested milestone committed and pushed on `codex/foundation`.
+- [x] Shared application shell with live navigation and shared league/player state.
+- [x] League settings editor with modeled, warning, and error coverage audit.
+- [x] Local CSV, TSV, and XLSX rankings import with column mapping and match review.
+- [x] Editable personal ranks, tiers, ADP values, and player notes.
+- [x] M1 import, audit, type, domain, and rendered-output verification.

@@ -49,6 +49,8 @@ export interface Player {
   tier: number;
   risk: number;
   excluded?: boolean;
+  notes?: string;
+  externalIds?: Record<string, string>;
   projectedStats: ProjectedStats;
 }
 

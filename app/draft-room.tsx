@@ -9,64 +9,76 @@ import {
 } from "@/lib/domain/draft";
 import { recommendPlayers } from "@/lib/domain/recommendation";
 import { calculateFantasyPoints } from "@/lib/domain/scoring";
-import type { DraftPick } from "@/lib/domain/types";
+import type { DraftPick, LeagueSettings, Player } from "@/lib/domain/types";
 import {
-  demoLeague,
-  demoPlayers,
-  demoTeams,
-  initialDemoPicks,
+  buildDemoTeams,
+  buildInitialDemoPicks,
 } from "@/lib/sample-data";
-
-const userTeam = demoTeams.find((team) => team.isUser)!;
 
 function formatPoints(value: number): string {
   return value.toFixed(1);
 }
 
-export function DraftRoom() {
-  const [picks, setPicks] = useState<DraftPick[]>(initialDemoPicks);
+interface DraftRoomProps {
+  league: LeagueSettings;
+  players: Player[];
+}
+
+export function DraftRoom({ league, players }: DraftRoomProps) {
+  const effectiveTeamCount = Math.max(1, Math.round(league.teamCount || 1));
+  const teams = useMemo(
+    () => buildDemoTeams(effectiveTeamCount),
+    [effectiveTeamCount],
+  );
+  const initialPicks = useMemo(
+    () => buildInitialDemoPicks(effectiveTeamCount),
+    [effectiveTeamCount],
+  );
+  const userTeam = teams.find((team) => team.isUser)!;
+  const [picks, setPicks] = useState<DraftPick[]>(initialPicks);
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
+
   const draftedIds = useMemo(
     () => new Set(picks.map((pick) => pick.playerId)),
     [picks],
   );
   const currentOverall = picks.length + 1;
-  const currentRound = roundForOverallPick(currentOverall, demoLeague.teamCount);
+  const currentRound = roundForOverallPick(currentOverall, effectiveTeamCount);
   const currentTeam = teamForOverallPick(
     currentOverall,
-    demoTeams,
-    demoLeague.draftType,
+    teams,
+    league.draftType,
   );
   const userPlayerIds = playerIdsForTeam(picks, userTeam.id);
-  const userRoster = demoPlayers.filter((player) =>
+  const userRoster = players.filter((player) =>
     userPlayerIds.includes(player.id),
   );
   const currentTurnOffset = picksUntilTeamTurn(
     currentOverall,
     userTeam.id,
-    demoTeams,
-    demoLeague.draftType,
+    teams,
+    league.draftType,
   );
   const nextTurnGap = currentTeam.isUser
     ? 1 +
       picksUntilTeamTurn(
         currentOverall + 1,
         userTeam.id,
-        demoTeams,
-        demoLeague.draftType,
+        teams,
+        league.draftType,
       )
     : currentTurnOffset;
 
   const recommendations = recommendPlayers({
-    players: demoPlayers,
-    league: demoLeague,
+    players,
+    league,
     picks,
     userRoster,
     currentOverall,
     picksUntilNextTurn: nextTurnGap,
   });
   const best = recommendations[0];
-  const availablePlayers = demoPlayers
+  const availablePlayers = players
     .filter((player) => !draftedIds.has(player.id))
     .sort((a, b) => a.userRank - b.userRank);
   const selected = selectedPlayerId
@@ -96,13 +108,13 @@ export function DraftRoom() {
   }
 
   function undoLastPick() {
-    if (picks.length <= initialDemoPicks.length) return;
+    if (picks.length <= initialPicks.length) return;
     setPicks((current) => current.slice(0, -1));
     setSelectedPlayerId(null);
   }
 
   function resetDemo() {
-    setPicks(initialDemoPicks);
+    setPicks(initialPicks);
     setSelectedPlayerId(null);
   }
 
@@ -110,34 +122,20 @@ export function DraftRoom() {
   const recentPicks = [...picks].reverse().slice(0, 6);
 
   return (
-    <main className="app-shell">
-      <header className="topbar">
-        <a className="brand" href="#top" aria-label="Draft Manager home">
-          <span className="brand-mark">FM</span>
-          <span><strong>Draft Manager</strong><small>Decision room</small></span>
-        </a>
-        <nav className="main-nav" aria-label="Primary navigation">
-          <a className="active" href="#draft-room">Draft room</a>
-          <a href="#plan">Build plan</a>
-        </nav>
-        <div className="connection-status">
-          <span className="status-dot" /> Yahoo access pending
-        </div>
-      </header>
-
+    <>
       <section className="draft-context" id="top">
         <div>
           <p className="eyebrow">Demo league · manual mode</p>
-          <h1>{demoLeague.name}</h1>
-          <p>{demoLeague.teamCount} teams · {demoLeague.scoringLabel} · Draft slot 7</p>
+          <h1>{league.name}</h1>
+          <p>{league.teamCount} teams · {league.scoringLabel} · Draft slot {userTeam.draftSlot}</p>
         </div>
         <div className="pick-clock" aria-live="polite">
           <span>On the clock</span>
-          <strong>{currentTeam.name} · {currentRound}.{((currentOverall - 1) % demoLeague.teamCount) + 1}</strong>
+          <strong>{currentTeam.name} · {currentRound}.{((currentOverall - 1) % effectiveTeamCount) + 1}</strong>
           <small>{currentTeam.isUser ? "Your recommendation is ready" : `Your next pick: ${upcomingUserPick}`}</small>
         </div>
         <div className="context-actions">
-          <button className="secondary-button" onClick={undoLastPick} disabled={picks.length <= initialDemoPicks.length}>Undo</button>
+          <button className="secondary-button" onClick={undoLastPick} disabled={picks.length <= initialPicks.length}>Undo</button>
           <button className="ghost-button" onClick={resetDemo}>Reset demo</button>
         </div>
       </section>
@@ -201,7 +199,7 @@ export function DraftRoom() {
                           <span className="player-meta"><b className={`position ${player.positions[0].toLowerCase()}`}>{player.positions[0]}</b>{player.nflTeam} · Tier {player.tier}</span>
                         </button>
                       </td>
-                      <td>{formatPoints(calculateFantasyPoints(player, demoLeague.scoringRules))}</td>
+                      <td>{formatPoints(calculateFantasyPoints(player, league.scoringRules))}</td>
                       <td>{player.adp.toFixed(1)}</td>
                       <td>
                         <button className="log-pick" onClick={() => logPick(player.id)} aria-label={`Log ${player.name} for ${currentTeam.name}`}>{currentTeam.isUser ? "Draft" : "Log"}</button>
@@ -225,17 +223,17 @@ export function DraftRoom() {
               <div className="roster-player" key={player.id}>
                 <span className={`position ${player.positions[0].toLowerCase()}`}>{player.positions[0]}</span>
                 <div><strong>{player.name}</strong><small>{player.nflTeam} · Bye {player.byeWeek}</small></div>
-                <b>{formatPoints(calculateFantasyPoints(player, demoLeague.scoringRules))}</b>
+                <b>{formatPoints(calculateFantasyPoints(player, league.scoringRules))}</b>
               </div>
             ))}
-            {demoLeague.rosterSlots.slice(userRoster.length).map((slot) => (
+            {league.rosterSlots.slice(userRoster.length).map((slot) => (
               <div className="empty-slot" key={slot.id}><span>{slot.label}</span><small>Open starter slot</small></div>
             ))}
           </div>
           <div className="settings-audit">
             <div className="section-label">League model</div>
-            <div><span>Scoring rules</span><strong>{demoLeague.scoringRules.length}/{demoLeague.scoringRules.length}</strong></div>
-            <div><span>Roster slots</span><strong>{demoLeague.rosterSlots.length}/{demoLeague.rosterSlots.length}</strong></div>
+            <div><span>Scoring rules</span><strong>{league.scoringRules.length}/{league.scoringRules.length}</strong></div>
+            <div><span>Roster slots</span><strong>{league.rosterSlots.length}/{league.rosterSlots.length}</strong></div>
             <div><span>Projection coverage</span><strong className="covered">Complete</strong></div>
           </div>
         </aside>
@@ -246,8 +244,8 @@ export function DraftRoom() {
           <p className="eyebrow">Latest picks</p>
           <div className="pick-feed">
             {recentPicks.map((pick) => {
-              const pickedPlayer = demoPlayers.find((candidate) => candidate.id === pick.playerId)!;
-              const team = demoTeams.find((candidate) => candidate.id === pick.teamId)!;
+              const pickedPlayer = players.find((candidate) => candidate.id === pick.playerId)!;
+              const team = teams.find((candidate) => candidate.id === pick.teamId)!;
               return <span key={pick.overall}><b>{pick.overall}</b> {pickedPlayer.name}<small>{team.name}</small></span>;
             })}
           </div>
@@ -262,6 +260,6 @@ export function DraftRoom() {
         <div><p className="eyebrow">Foundation milestone</p><h2>Useful before Yahoo approval. Ready to connect afterward.</h2></div>
         <p>The same scoring, roster, and recommendation modules powering this demo will consume normalized Yahoo league data once API access is approved.</p>
       </section>
-    </main>
+    </>
   );
 }

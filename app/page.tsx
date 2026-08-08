@@ -1,5 +1,5 @@
-import { DraftRoom } from "./draft-room";
+import { DraftManagerApp } from "./draft-manager-app";
 
 export default function Home() {
-  return <DraftRoom />;
+  return <DraftManagerApp />;
 }
