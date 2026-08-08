@@ -7,6 +7,7 @@ import {
 import { recommendPlayers } from "../../lib/domain/recommendation";
 import {
   calculateFantasyPoints,
+  estimateDynamicReplacementBaselines,
   findUncoveredScoringStats,
 } from "../../lib/domain/scoring";
 import {
@@ -62,4 +63,57 @@ test("recommendations exclude drafted players and are ordered by utility", () =>
           recommendation.breakdown.total,
     ),
   );
+});
+
+test("advanced recommendations model live baselines, opponents, and deterministic wait scenarios", () => {
+  const baselines = estimateDynamicReplacementBaselines(
+    demoPlayers,
+    demoLeague,
+    initialDemoPicks,
+  );
+  assert.ok(baselines.RB > 0);
+  assert.ok(baselines.WR > 0);
+
+  const input = {
+    players: demoPlayers,
+    league: demoLeague,
+    picks: initialDemoPicks,
+    userRoster: [],
+    currentOverall: 7,
+    picksUntilNextTurn: 7,
+    teams: demoTeams,
+    seed: "advanced-engine",
+    simulationCount: 160,
+    limit: demoPlayers.length,
+  };
+  const first = recommendPlayers(input);
+  const second = recommendPlayers(input);
+
+  assert.deepEqual(first, second);
+  assert.equal(first[0].waitAnalysis.simulations, 160);
+  assert.ok(first[0].waitAnalysis.opponentNeedScore > 0);
+  assert.ok(first[0].confidence >= 0.58 && first[0].confidence <= 0.92);
+  assert.ok(["draft-now", "lean-now", "can-wait"].includes(first[0].decision));
+  assert.ok(first[0].explanation.some((reason) => reason.includes("wait scenarios")));
+});
+
+test("risk preferences change the penalty without changing player data", () => {
+  const shared = {
+    players: demoPlayers,
+    league: demoLeague,
+    picks: initialDemoPicks,
+    userRoster: [],
+    currentOverall: 7,
+    picksUntilNextTurn: 7,
+    teams: demoTeams,
+    seed: "risk-profile",
+    limit: demoPlayers.length,
+  };
+  const safe = recommendPlayers({ ...shared, riskTolerance: "safe" });
+  const upside = recommendPlayers({ ...shared, riskTolerance: "upside" });
+  const safeMccaffrey = safe.find(({ player }) => player.id === "mccaffrey")!;
+  const upsideMccaffrey = upside.find(({ player }) => player.id === "mccaffrey")!;
+
+  assert.ok(safeMccaffrey.breakdown.riskPenalty > upsideMccaffrey.breakdown.riskPenalty);
+  assert.equal(safeMccaffrey.player.risk, upsideMccaffrey.player.risk);
 });

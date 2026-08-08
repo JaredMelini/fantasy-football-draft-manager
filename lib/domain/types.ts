@@ -91,6 +91,10 @@ export type DraftEvent = DraftPickEvent | DraftUndoEvent;
 
 export type OpponentStrategy = "balanced" | "best-available" | "needs-first";
 
+export type RiskTolerance = "safe" | "balanced" | "upside";
+
+export type RecommendationDecision = "draft-now" | "lean-now" | "can-wait";
+
 export interface RecommendationBreakdown {
   projectedPoints: number;
   replacementValue: number;
@@ -98,13 +102,27 @@ export interface RecommendationBreakdown {
   rosterFit: number;
   tierScarcity: number;
   availabilityUrgency: number;
+  opponentDemand: number;
+  opportunityCost: number;
   riskPenalty: number;
   total: number;
+}
+
+export interface RecommendationWaitAnalysis {
+  simulations: number;
+  expectedAlternativeName: string | null;
+  expectedAlternativeScore: number;
+  opportunityLoss: number;
+  recentPositionRun: number;
+  opponentNeedScore: number;
 }
 
 export interface PlayerRecommendation {
   player: Player;
   breakdown: RecommendationBreakdown;
   returnProbability: number;
+  decision: RecommendationDecision;
+  confidence: number;
+  waitAnalysis: RecommendationWaitAnalysis;
   explanation: string[];
 }

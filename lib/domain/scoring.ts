@@ -1,4 +1,5 @@
 import type {
+  DraftPick,
   LeagueSettings,
   Player,
   PlayerPosition,
@@ -13,6 +14,54 @@ export function calculateFantasyPoints(
     const projectedValue = player.projectedStats[rule.stat] ?? 0;
     return total + projectedValue * rule.pointsPerUnit;
   }, 0);
+}
+
+export function estimateDynamicReplacementBaselines(
+  players: Player[],
+  league: LeagueSettings,
+  picks: DraftPick[] = [],
+): Record<PlayerPosition, number> {
+  const positions: PlayerPosition[] = ["QB", "RB", "WR", "TE", "K", "DST"];
+  const draftedIds = new Set(picks.map((pick) => pick.playerId));
+  const available = players.filter(
+    (player) => !draftedIds.has(player.id) && !player.excluded,
+  );
+  const demand = Object.fromEntries(
+    positions.map((position) => [position, 0]),
+  ) as Record<PlayerPosition, number>;
+  const draftedDemand = Object.fromEntries(
+    positions.map((position) => [position, 0]),
+  ) as Record<PlayerPosition, number>;
+
+  for (const slot of league.rosterSlots) {
+    const share = league.teamCount / Math.max(slot.eligiblePositions.length, 1);
+    for (const position of slot.eligiblePositions) demand[position] += share;
+  }
+
+  for (const pick of picks) {
+    const player = players.find((candidate) => candidate.id === pick.playerId);
+    if (!player) continue;
+    const share = 1 / Math.max(player.positions.length, 1);
+    for (const position of player.positions) draftedDemand[position] += share;
+  }
+
+  return Object.fromEntries(
+    positions.map((position) => {
+      const positionalPlayers = available
+        .filter((player) => player.positions.includes(position))
+        .map((player) => calculateFantasyPoints(player, league.scoringRules))
+        .sort((a, b) => b - a);
+      const remainingStarterDemand = Math.max(
+        1,
+        Math.round(demand[position] - draftedDemand[position]),
+      );
+      const replacementIndex = Math.min(
+        remainingStarterDemand - 1,
+        Math.max(positionalPlayers.length - 1, 0),
+      );
+      return [position, positionalPlayers[replacementIndex] ?? 0];
+    }),
+  ) as Record<PlayerPosition, number>;
 }
 
 export function findUncoveredScoringStats(

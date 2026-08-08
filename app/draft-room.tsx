@@ -30,6 +30,8 @@ import type {
   OpponentStrategy,
   Player,
   PlayerPosition,
+  RecommendationDecision,
+  RiskTolerance,
 } from "@/lib/domain/types";
 import { buildDemoTeams } from "@/lib/sample-data";
 import { Button } from "@/components/ui/button";
@@ -39,6 +41,12 @@ import { Textarea } from "@/components/ui/textarea";
 
 function formatPoints(value: number): string {
   return value.toFixed(1);
+}
+
+function decisionLabel(decision: RecommendationDecision): string {
+  if (decision === "draft-now") return "Draft now";
+  if (decision === "lean-now") return "Lean now";
+  return "Can wait";
 }
 
 interface DraftRoomProps {
@@ -63,6 +71,7 @@ export function DraftRoom({
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [position, setPosition] = useState<PlayerPosition | "ALL">("ALL");
+  const [riskTolerance, setRiskTolerance] = useState<RiskTolerance>("balanced");
   const [showQuickCapture, setShowQuickCapture] = useState(false);
   const [captureText, setCaptureText] = useState("");
   const effectiveTeamCount = Math.max(1, Math.round(league.teamCount || 1));
@@ -117,6 +126,9 @@ export function DraftRoom({
         userRoster,
         currentOverall,
         picksUntilNextTurn: nextTurnGap,
+        teams,
+        seed,
+        riskTolerance,
         limit: players.length,
       });
   const best = recommendations[0];
@@ -274,14 +286,33 @@ export function DraftRoom({
                 <span className={`position ${selected.player.positions[0].toLowerCase()}`}>{selected.player.positions[0]}</span>
                 <span>{selected.player.nflTeam}</span><span>Tier {selected.player.tier}</span><span>Bye {selected.player.byeWeek}</span>
               </div>
+              <div className="decision-strip">
+                <span className={`decision-chip ${selected.decision}`}>{decisionLabel(selected.decision)}</span>
+                <strong>{Math.round(selected.confidence * 100)}% confidence</strong>
+                <small>{selected.waitAnalysis.simulations} scenarios</small>
+              </div>
+              <label className="risk-control">
+                <span>Risk profile</span>
+                <select value={riskTolerance} onChange={(event) => setRiskTolerance(event.target.value as RiskTolerance)} aria-label="Recommendation risk profile">
+                  <option value="safe">Safer floor</option>
+                  <option value="balanced">Balanced</option>
+                  <option value="upside">Chase upside</option>
+                </select>
+              </label>
               <div className="recommendation-summary"><strong>{formatPoints(selected.breakdown.projectedPoints)}</strong><span>projected league points</span></div>
               <ul className="reason-list">
                 {selected.explanation.map((reason) => <li key={reason}>{reason}</li>)}
               </ul>
+              <div className="wait-comparison" aria-label="Draft now versus wait comparison">
+                <div><span>Draft now</span><strong>{selected.player.name}</strong><small>Lock in a {selected.breakdown.total} decision score</small></div>
+                <div><span>If you wait</span><strong>{selected.waitAnalysis.expectedAlternativeName ?? "No reliable fallback"}</strong><small>{selected.waitAnalysis.opportunityLoss > 0 ? `${selected.waitAnalysis.opportunityLoss} expected score lost` : "Comparable value should remain"}</small></div>
+              </div>
               <div className="factor-grid" aria-label="Recommendation factors">
                 <div><span>Above replacement</span><strong>+{selected.breakdown.replacementValue}</strong></div>
                 <div><span>Roster fit</span><strong>+{selected.breakdown.rosterFit}</strong></div>
                 <div><span>Wait urgency</span><strong>+{selected.breakdown.availabilityUrgency}</strong></div>
+                <div><span>Opponent pressure</span><strong>+{selected.breakdown.opponentDemand}</strong></div>
+                <div><span>Wait opportunity</span><strong>+{selected.breakdown.opportunityCost}</strong></div>
                 <div><span>Risk adjustment</span><strong>−{selected.breakdown.riskPenalty}</strong></div>
               </div>
               <Button className="w-full" onClick={() => logPick(selected.player.id)}>
@@ -296,7 +327,7 @@ export function DraftRoom({
             <div className="section-label">Alternatives</div>
             {recommendations.slice(0, 4).map((recommendation, index) => (
               <button className={selected?.player.id === recommendation.player.id ? "selected" : ""} key={recommendation.player.id} onClick={() => setSelectedPlayerId(recommendation.player.id)}>
-                <span>{index + 1}</span><strong>{recommendation.player.name}</strong><small>{Math.round(recommendation.returnProbability * 100)}% returns</small>
+                <span>{index + 1}</span><strong>{recommendation.player.name}</strong><small>{decisionLabel(recommendation.decision)} · {Math.round(recommendation.returnProbability * 100)}% returns</small>
               </button>
             ))}
           </div>
@@ -403,8 +434,8 @@ export function DraftRoom({
       </section>
 
       <section className="plan-banner" id="plan">
-        <div><p className="eyebrow">Mock milestone</p><h2>Practice a complete draft, then replay every decision.</h2></div>
-        <p>Manual and simulated picks now use the same append-only event model planned for Yahoo synchronization, including deterministic reconstruction and correction history.</p>
+        <div><p className="eyebrow">Decision Engine v2</p><h2>Know when to take the player—and when you can wait.</h2></div>
+        <p>Every recommendation now combines live replacement value, your roster, market timing, opponent needs, positional runs, and deterministic wait scenarios. Yahoo synchronization can feed this same model when access is approved.</p>
       </section>
     </>
   );
