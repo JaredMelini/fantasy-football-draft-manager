@@ -20,6 +20,10 @@ import {
   simulateNextPick,
   simulateUntilUserTurn,
 } from "@/lib/domain/simulation";
+import {
+  appendCapturedPicks,
+  parseDraftPickCapture,
+} from "@/lib/import/draft-picks";
 import type {
   DraftEvent,
   LeagueSettings,
@@ -55,6 +59,8 @@ export function DraftRoom({
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [position, setPosition] = useState<PlayerPosition | "ALL">("ALL");
+  const [showQuickCapture, setShowQuickCapture] = useState(false);
+  const [captureText, setCaptureText] = useState("");
   const effectiveTeamCount = Math.max(1, Math.round(league.teamCount || 1));
   const teams = useMemo(
     () => buildDemoTeams(effectiveTeamCount),
@@ -122,6 +128,10 @@ export function DraftRoom({
         (recommendation) => recommendation.player.id === selectedPlayerId,
       ) ?? best
     : best;
+  const capturePreview = useMemo(
+    () => parseDraftPickCapture(captureText, players, draftedIds),
+    [captureText, draftedIds, players],
+  );
 
   function logPick(playerId: string) {
     if (draftComplete || draftedIds.has(playerId)) return;
@@ -174,6 +184,22 @@ export function DraftRoom({
     setSelectedPlayerId(null);
   }
 
+  function importCapturedPicks() {
+    if (capturePreview.matches.length === 0) return;
+    onEventsChange(
+      appendCapturedPicks({
+        events,
+        matches: capturePreview.matches,
+        teams,
+        league,
+        maximumPicks,
+      }),
+    );
+    setCaptureText("");
+    setShowQuickCapture(false);
+    setSelectedPlayerId(null);
+  }
+
   const upcomingUserPick = currentOverall + currentTurnOffset;
   const recentPicks = [...picks].reverse().slice(0, 8);
 
@@ -201,6 +227,7 @@ export function DraftRoom({
           </small>
         </div>
         <div className="context-actions">
+          <button className="secondary-button" onClick={() => setShowQuickCapture((current) => !current)}>{showQuickCapture ? "Close capture" : "Quick capture"}</button>
           <button className="secondary-button" onClick={undoLastPick} disabled={picks.length === 0}>Undo last</button>
           <button className="ghost-button" onClick={onResetDraft}>Reset session</button>
         </div>
@@ -209,6 +236,26 @@ export function DraftRoom({
       <div className="draft-progress" aria-label="Draft progress">
         <span style={{ width: `${maximumPicks === 0 ? 0 : (picks.length / maximumPicks) * 100}%` }} />
       </div>
+
+      {showQuickCapture && (
+        <section className="quick-capture panel">
+          <div>
+            <p className="eyebrow">API-free live companion</p>
+            <h2>Paste picks in draft order</h2>
+            <p>Copy or type one pick per line. Player names can appear inside longer lines such as “1.07 — Amon-Ra St. Brown — My Team.” Team ownership is reconstructed from your draft order.</p>
+          </div>
+          <textarea value={captureText} onChange={(event) => setCaptureText(event.target.value)} placeholder={"Bijan Robinson\nJahmyr Gibbs\nJa'Marr Chase"} aria-label="Draft picks in order" autoFocus />
+          <div className="capture-results">
+            <span><strong>{capturePreview.matches.length}</strong> matched</span>
+            <span><strong>{capturePreview.unmatched.length}</strong> unmatched</span>
+            <span><strong>{capturePreview.duplicates.length}</strong> duplicates</span>
+            {(capturePreview.unmatched.length > 0 || capturePreview.duplicates.length > 0) && (
+              <small>Review: {[...capturePreview.unmatched, ...capturePreview.duplicates].slice(0, 4).join(", ")}</small>
+            )}
+          </div>
+          <button className="primary-button compact-button" disabled={capturePreview.matches.length === 0} onClick={importCapturedPicks}>Import {Math.min(capturePreview.matches.length, maximumPicks - picks.length)} picks</button>
+        </section>
+      )}
 
       <div className="workspace-grid" id="draft-room">
         <section className="recommendation-panel panel">

@@ -183,6 +183,22 @@ Yahoo approval is pending. Before live synchronization is considered reliable:
 
 If live results are delayed, automatic mode will show its age and manual capture will remain immediately available.
 
+### API-independent operating model
+
+Yahoo's documented Fantasy Sports endpoints require OAuth 2.0 for authorized league and user data. Public game metadata does not replace access to a private league's exact settings, teams, rosters, or draft state. The application therefore does not attempt to bypass approval through page scraping, browser automation, credential sharing, private network interception, or undocumented endpoints.
+
+The compliant no-API path provides most draft-day functionality through user-controlled data:
+
+- Manual league settings and coverage audit
+- CSV, TSV, and XLSX ranking imports
+- One-click manual picks and multi-line Quick Capture in draft order
+- Event-sourced undo, replay, mock simulation, and evaluation
+- Automatic device-local saving
+- Portable JSON backup and restore across devices
+- A provider-neutral connector contract so OAuth can replace manual inputs later
+
+Official references: [Yahoo Fantasy API documentation](https://sports.yahoo.com/developer/docs/) and [Yahoo Fantasy API access process](https://sports.yahoo.com/developer/access/).
+
 ## 8. Ranking and projection import plan
 
 ### Universal import
@@ -316,6 +332,14 @@ If live results are delayed, automatic mode will show its age and manual capture
 - Seeded internal opponent simulator
 - Replay and evaluation
 
+### M2A — Offline Bridge (complete)
+
+- Device-local automatic session saving
+- Portable league, ranking, and draft-history backups
+- Multi-line live pick capture with match review
+- Manual workflow launchpad and API-readiness status
+- Provider-neutral Yahoo connector boundary
+
 ### M3 — Yahoo connector
 
 - OAuth and encrypted token storage
@@ -366,3 +390,7 @@ If live results are delayed, automatic mode will show its age and manual capture
 - [x] Mock Lab with full-draft automation, replay slider, team boards, and decision evaluation.
 - [x] Expanded 70-player demo pool for complete ten-team starter mocks.
 - [x] M2 event, simulator, roster, evaluation, type, lint, and rendered-output verification.
+- [x] Offline Bridge with automatic local saving and portable package backup/restore.
+- [x] API-free Quick Capture for ordered draft logs with duplicate and unmatched review.
+- [x] Provider-neutral connector contract ready for Yahoo OAuth credentials.
+- [x] Yahoo access review confirmed that private league synchronization cannot be safely replaced by public metadata.

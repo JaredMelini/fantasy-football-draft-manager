@@ -1,76 +1,83 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { DraftRoom } from "./draft-room";
 import { LeagueSettings } from "./league-settings";
 import { MockLab } from "./mock-lab";
+import { OfflineBridge } from "./offline-bridge";
 import { RankingsStudio } from "./rankings-studio";
 import { eventsFromPicks } from "@/lib/domain/draft-session";
 import {
-  buildInitialDemoPicks,
-  demoLeague,
-  demoPlayers,
-} from "@/lib/sample-data";
+  clearLocalDraftSnapshot,
+  getLocalDraftSnapshot,
+  getServerDraftSnapshot,
+  saveLocalDraftSnapshot,
+  subscribeToLocalDraft,
+} from "@/lib/local-draft-store";
+import {
+  createDefaultOfflinePackage,
+  type OfflineDraftPackage,
+} from "@/lib/offline-package";
+import { buildInitialDemoPicks } from "@/lib/sample-data";
 import type {
-  DraftEvent,
   LeagueSettings as LeagueSettingsModel,
   OpponentStrategy,
   Player,
 } from "@/lib/domain/types";
 
-type AppView = "draft" | "mock" | "rankings" | "league";
+type AppView = "draft" | "mock" | "rankings" | "league" | "offline";
 
-function freshLeague(): LeagueSettingsModel {
-  return {
-    ...demoLeague,
-    rosterSlots: demoLeague.rosterSlots.map((slot) => ({
-      ...slot,
-      eligiblePositions: [...slot.eligiblePositions],
-    })),
-    scoringRules: demoLeague.scoringRules.map((rule) => ({ ...rule })),
-  };
-}
-
-function freshPlayers(): Player[] {
-  return demoPlayers.map((player) => ({
-    ...player,
-    positions: [...player.positions],
-    projectedStats: { ...player.projectedStats },
-    externalIds: player.externalIds ? { ...player.externalIds } : undefined,
-  }));
-}
-
-function freshDraftEvents(league: LeagueSettingsModel): DraftEvent[] {
-  return eventsFromPicks(buildInitialDemoPicks(league.teamCount), "provider");
-}
+const DEFAULT_STATE = createDefaultOfflinePackage();
 
 export function DraftManagerApp() {
   const [view, setView] = useState<AppView>("draft");
-  const [league, setLeague] = useState<LeagueSettingsModel>(freshLeague);
-  const [players, setPlayers] = useState<Player[]>(freshPlayers);
-  const [events, setEvents] = useState<DraftEvent[]>(() =>
-    freshDraftEvents(demoLeague),
+  const storedState = useSyncExternalStore(
+    subscribeToLocalDraft,
+    getLocalDraftSnapshot,
+    getServerDraftSnapshot,
   );
-  const [simulationSeed, setSimulationSeed] = useState("sunday-night-2026");
-  const [opponentStrategy, setOpponentStrategy] =
-    useState<OpponentStrategy>("balanced");
+  const state = storedState ?? DEFAULT_STATE;
+  const { league, players, events, simulationSeed, opponentStrategy } = state;
 
   const navItems: Array<{ id: AppView; label: string }> = [
     { id: "draft", label: "Draft room" },
     { id: "mock", label: "Mock Lab" },
     { id: "rankings", label: "Rankings" },
     { id: "league", label: "League setup" },
+    { id: "offline", label: "Offline Bridge" },
   ];
 
+  function saveState(changes: Partial<OfflineDraftPackage>) {
+    saveLocalDraftSnapshot({ ...state, ...changes });
+  }
+
   function resetDraft(nextLeague = league) {
-    setEvents(freshDraftEvents(nextLeague));
+    saveState({
+      events: eventsFromPicks(
+        buildInitialDemoPicks(nextLeague.teamCount),
+        "provider",
+      ),
+    });
   }
 
   function updateLeague(nextLeague: LeagueSettingsModel) {
     const currentShape = `${league.teamCount}:${league.draftType}:${league.rosterSlots.map((slot) => `${slot.label}-${slot.eligiblePositions.join("/")}`).join("|")}`;
     const nextShape = `${nextLeague.teamCount}:${nextLeague.draftType}:${nextLeague.rosterSlots.map((slot) => `${slot.label}-${slot.eligiblePositions.join("/")}`).join("|")}`;
-    setLeague(nextLeague);
-    if (currentShape !== nextShape) resetDraft(nextLeague);
+    saveState({
+      league: nextLeague,
+      events:
+        currentShape === nextShape
+          ? events
+          : eventsFromPicks(
+              buildInitialDemoPicks(nextLeague.teamCount),
+              "provider",
+            ),
+    });
+  }
+
+  function resetEverything() {
+    clearLocalDraftSnapshot();
+    setView("offline");
   }
 
   return (
@@ -97,9 +104,9 @@ export function DraftManagerApp() {
           ))}
         </nav>
 
-        <div className="connection-status" title="Yahoo connection is awaiting API approval">
-          <span className="status-dot" />
-          Yahoo approval pending
+        <div className="connection-status" title="Offline companion is ready; Yahoo OAuth is awaiting approval">
+          <span className="status-dot ready" />
+          Offline companion ready
         </div>
       </header>
 
@@ -111,7 +118,7 @@ export function DraftManagerApp() {
           events={events}
           seed={simulationSeed}
           strategy={opponentStrategy}
-          onEventsChange={setEvents}
+          onEventsChange={(nextEvents) => saveState({ events: nextEvents })}
           onResetDraft={() => resetDraft()}
         />
       )}
@@ -122,9 +129,11 @@ export function DraftManagerApp() {
           events={events}
           seed={simulationSeed}
           strategy={opponentStrategy}
-          onEventsChange={setEvents}
-          onSeedChange={setSimulationSeed}
-          onStrategyChange={setOpponentStrategy}
+          onEventsChange={(nextEvents) => saveState({ events: nextEvents })}
+          onSeedChange={(seed: string) => saveState({ simulationSeed: seed })}
+          onStrategyChange={(strategy: OpponentStrategy) =>
+            saveState({ opponentStrategy: strategy })
+          }
           onResetDraft={() => resetDraft()}
           onOpenDraft={() => setView("draft")}
         />
@@ -132,8 +141,12 @@ export function DraftManagerApp() {
       {view === "rankings" && (
         <RankingsStudio
           players={players}
-          onPlayersChange={setPlayers}
-          onReset={() => setPlayers(freshPlayers())}
+          onPlayersChange={(nextPlayers: Player[]) =>
+            saveState({ players: nextPlayers })
+          }
+          onReset={() =>
+            saveState({ players: createDefaultOfflinePackage().players })
+          }
         />
       )}
       {view === "league" && (
@@ -142,10 +155,17 @@ export function DraftManagerApp() {
           players={players}
           onLeagueChange={updateLeague}
           onReset={() => {
-            const restored = freshLeague();
-            setLeague(restored);
-            resetDraft(restored);
+            const restored = createDefaultOfflinePackage();
+            saveState({ league: restored.league, events: restored.events });
           }}
+        />
+      )}
+      {view === "offline" && (
+        <OfflineBridge
+          state={state}
+          onImport={(imported) => saveLocalDraftSnapshot(imported)}
+          onReset={resetEverything}
+          onNavigate={setView}
         />
       )}
     </main>
