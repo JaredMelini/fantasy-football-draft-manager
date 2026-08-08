@@ -50,6 +50,10 @@ function formatPoints(value: number): string {
   return value.toFixed(1);
 }
 
+function formatSignedScore(value: number): string {
+  return `${value > 0 ? "+" : ""}${value}`;
+}
+
 function decisionLabel(decision: RecommendationDecision): string {
   if (decision === "draft-now") return "Draft now";
   if (decision === "lean-now") return "Lean now";
@@ -465,12 +469,12 @@ export function DraftRoom({
                 </div>
               )}
               <div className="factor-grid" aria-label="Recommendation factors">
-                <div><span>Above replacement</span><strong>+{selected.breakdown.replacementValue}</strong></div>
-                <div><span>Roster fit</span><strong>+{selected.breakdown.rosterFit}</strong></div>
-                <div><span>Wait urgency</span><strong>+{selected.breakdown.availabilityUrgency}</strong></div>
-                <div><span>Opponent pressure</span><strong>+{selected.breakdown.opponentDemand}</strong></div>
-                <div><span>Wait opportunity</span><strong>+{selected.breakdown.opportunityCost}</strong></div>
-                <div><span>Upside profile</span><strong>+{selected.breakdown.upsideValue}</strong></div>
+                <div><span>Above replacement</span><strong>{formatSignedScore(selected.breakdown.replacementValue)}</strong></div>
+                <div><span>Roster fit</span><strong>{formatSignedScore(selected.breakdown.rosterFit)}</strong></div>
+                <div><span>Wait urgency</span><strong>{formatSignedScore(selected.breakdown.availabilityUrgency)}</strong></div>
+                <div><span>Opponent pressure</span><strong>{formatSignedScore(selected.breakdown.opponentDemand)}</strong></div>
+                <div><span>Wait opportunity</span><strong>{formatSignedScore(selected.breakdown.opportunityCost)}</strong></div>
+                <div><span>Upside profile</span><strong>{formatSignedScore(selected.breakdown.upsideValue)}</strong></div>
                 <div><span>Risk adjustment</span><strong>−{selected.breakdown.riskPenalty}</strong></div>
               </div>
               <Button className="w-full" onClick={() => logPick(selected.player.id)}>

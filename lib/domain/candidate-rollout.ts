@@ -1,5 +1,5 @@
 import { draftRosterSize, teamForOverallPick } from "./draft";
-import { assignRoster } from "./roster";
+import { assessCandidateRosterFit, assignRoster } from "./roster";
 import {
   calculateFantasyPoints,
   estimateDynamicReplacementBaselines,
@@ -185,18 +185,24 @@ function chooseFuturePlayer(input: {
     input.roster,
     input.league.rosterSlots,
   ).starters.length;
-
   return [...input.pool]
     .map((player) => {
       const points = calculateFantasyPoints(player, input.league.scoringRules);
       const baseline = Math.min(
         ...player.positions.map((position) => input.baselines[position]),
       );
-      const fillsStarter =
-        assignRoster([...input.roster, player], input.league.rosterSlots).starters
-          .length > filledBefore;
-      const needWeight =
-        input.strategy === "needs" ? 20 : input.strategy === "balanced" ? 12 : 6;
+      const rosterFit = assessCandidateRosterFit(
+        input.roster,
+        player,
+        input.league.rosterSlots,
+        filledBefore,
+      );
+      const needMultiplier =
+        input.strategy === "needs"
+          ? 2.2
+          : input.strategy === "balanced"
+            ? 1.4
+            : 0.7;
       const valueWeight = input.strategy === "value" ? 1.25 : 1;
       const personalRank =
         getPositionRankValue(player, input.pool) * 0.8;
@@ -208,7 +214,7 @@ function chooseFuturePlayer(input: {
         score:
           ((points - baseline) / 6) * valueWeight +
           personalRank +
-          (fillsStarter ? needWeight : 0) -
+          rosterFit.score * needMultiplier -
           player.risk * riskWeight(input.riskTolerance) -
           byeCollision * 0.35,
       };

@@ -15,6 +15,7 @@ import {
   getMarketAdp,
   primaryPosition,
 } from "./rankings";
+import { assessCandidateRosterFit } from "./roster";
 import type {
   DraftPick,
   DraftTeam,
@@ -52,6 +53,7 @@ interface CandidateAnalysis {
   recentPositionRun: number;
   upsideValue: number;
   riskPenalty: number;
+  rosterFitReason: string;
   baseTotal: number;
 }
 
@@ -264,28 +266,13 @@ export function recommendPlayers({
       players,
       rankingPosition,
     );
-    const filledAfter = assignedStarterCount(
-      [...userRoster, player],
+    const rosterConstruction = assessCandidateRosterFit(
+      userRoster,
+      player,
       league.rosterSlots,
+      filledBefore,
     );
-    const dedicatedSlots = league.rosterSlots.filter(
-      (slot) =>
-        slot.eligiblePositions.length === 1 &&
-        slot.eligiblePositions[0] === rankingPosition,
-    ).length;
-    const rosteredAtPosition = userRoster.filter((teammate) =>
-      teammate.positions.includes(rankingPosition),
-    ).length;
-    const repeatedPositionNeed = Math.max(
-      0,
-      dedicatedSlots - rosteredAtPosition - 1,
-    );
-    const rosterFit =
-      filledAfter > filledBefore
-        ? 7 + repeatedPositionNeed * 3
-        : userRoster.length < draftRosterSize(league)
-          ? 1.2
-          : 0.4;
+    const rosterFit = rosterConstruction.score;
     const samePosition = available
       .filter(
         (candidate) =>
@@ -351,6 +338,7 @@ export function recommendPlayers({
       recentPositionRun: run,
       upsideValue,
       riskPenalty,
+      rosterFitReason: rosterConstruction.reason,
       baseTotal,
     };
   });
@@ -413,6 +401,7 @@ export function recommendPlayers({
         },
         explanation: [
           `${rankingPositionLabel(candidate.player, players)} on your position-based board`,
+          candidate.rosterFitReason,
           `${round(candidate.replacementValue)} league points above the live ${candidate.player.positions[0]} replacement line`,
           `${Math.round(wait.simulatedReturnProbability * 100)}% chance to reach pick ${nextUserPick} across ${Math.max(32, Math.round(simulationCount))} wait scenarios`,
           pressure,

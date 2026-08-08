@@ -15,6 +15,7 @@ import {
   demoLeague,
   demoPlayers,
   demoTeams,
+  buildDemoTeams,
   initialDemoPicks,
   yahooLeague,
 } from "../../lib/sample-data";
@@ -84,6 +85,35 @@ test("recommendations exclude drafted players and are ordered by utility", () =>
         recommendations[index - 1].breakdown.total >=
           recommendation.breakdown.total,
     ),
+  );
+});
+
+test("does not recommend an immediate second tight end over open starter needs", () => {
+  const teams = buildDemoTeams(yahooLeague.teamCount, 1);
+  const bijan = demoPlayers.find((player) => player.id === "bijan")!;
+  const bowers = demoPlayers.find((player) => player.id === "bowers")!;
+  const recommendations = recommendPlayers({
+    players: demoPlayers,
+    league: yahooLeague,
+    picks: [
+      { overall: 1, round: 1, teamId: "user", playerId: bijan.id },
+      { overall: 16, round: 2, teamId: "user", playerId: bowers.id },
+    ],
+    userRoster: [bijan, bowers],
+    currentOverall: 17,
+    picksUntilNextTurn: 15,
+    teams,
+    seed: "turn-test",
+    limit: demoPlayers.length,
+  });
+  const mcbride = recommendations.find(
+    ({ player }) => player.id === "mcbride",
+  )!;
+
+  assert.notEqual(recommendations[0].player.id, "mcbride");
+  assert.ok(mcbride.breakdown.rosterFit <= -12);
+  assert.ok(
+    mcbride.explanation.some((reason) => reason.includes("second TE")),
   );
 });
 
