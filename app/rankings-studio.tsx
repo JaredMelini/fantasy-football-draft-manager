@@ -15,6 +15,8 @@ import type {
   RankingTable,
 } from "@/lib/import/rankings";
 import type { Player } from "@/lib/domain/types";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 interface RankingsStudioProps {
   players: Player[];
@@ -174,13 +176,13 @@ export function RankingsStudio({
               {preview && preview.unmatched.length > 0 && (
                 <p className="import-detail"><strong>Review unmatched:</strong> {preview.unmatched.slice(0, 4).join(", ")}{preview.unmatched.length > 4 ? "…" : ""}</p>
               )}
-              <button
-                className="primary-button"
+              <Button
+                className="w-full"
                 disabled={!preview || preview.errors.length > 0 || preview.updates.length === 0}
                 onClick={applyImport}
               >
                 {importApplied ? "Import applied" : `Apply ${preview?.updates.length ?? 0} matched rows`}
-              </button>
+              </Button>
             </div>
           )}
         </aside>
@@ -193,9 +195,9 @@ export function RankingsStudio({
             </div>
             <label className="search-field">
               <span className="sr-only">Search players</span>
-              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search player, team, position" />
+              <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search player, team, position" />
             </label>
-            <button className="secondary-button" onClick={onReset}>Restore demo rankings</button>
+            <Button variant="outline" size="sm" onClick={onReset}>Restore demo rankings</Button>
           </div>
           <div className="table-wrap ranking-table-wrap">
             <table className="ranking-table">

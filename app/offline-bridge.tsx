@@ -7,6 +7,8 @@ import {
   parseOfflinePackage,
 } from "@/lib/offline-package";
 import type { OfflineDraftPackage } from "@/lib/offline-package";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 
 interface OfflineBridgeProps {
   state: OfflineDraftPackage;
@@ -106,9 +108,9 @@ export function OfflineBridge({
             <div><span>Event records</span><strong>{state.events.length}</strong></div>
           </div>
           <div className="backup-actions">
-            <button className="primary-button compact-button" onClick={exportPackage}>Download backup</button>
+            <Button size="sm" onClick={exportPackage}>Download backup</Button>
             <label className="secondary-button file-button">Import backup<input type="file" accept="application/json,.json" onChange={(event) => importFile(event.target.files?.[0])} /></label>
-            <button className="ghost-button reset-link" onClick={onReset}>Restore demo data</button>
+            <Button variant="ghost" size="sm" onClick={onReset}>Restore demo data</Button>
           </div>
           {message && <p className="bridge-message" aria-live="polite">{message}</p>}
         </section>
@@ -117,8 +119,8 @@ export function OfflineBridge({
           <div className="section-heading">
             <div><p className="eyebrow">Text transfer</p><h2>Paste a backup</h2></div>
           </div>
-          <textarea value={packageText} onChange={(event) => setPackageText(event.target.value)} placeholder='Paste an exported package beginning with { "version": 1…' aria-label="Offline package JSON" />
-          <button className="secondary-button" disabled={!packageText.trim()} onClick={() => importText(packageText)}>Validate and import</button>
+          <Textarea value={packageText} onChange={(event) => setPackageText(event.target.value)} placeholder='Paste an exported package beginning with { "version": 1…' aria-label="Offline package JSON" />
+          <Button variant="secondary" size="sm" disabled={!packageText.trim()} onClick={() => importText(packageText)}>Validate and import</Button>
         </section>
       </div>
 

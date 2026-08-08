@@ -8,6 +8,8 @@ import type {
   PlayerPosition,
   ProjectionStat,
 } from "@/lib/domain/types";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 interface LeagueSettingsProps {
   league: LeagueSettingsModel;
@@ -111,13 +113,13 @@ export function LeagueSettings({
           <section className="panel settings-card">
             <div className="section-heading">
               <div><p className="eyebrow">League basics</p><h2>Draft environment</h2></div>
-              <button className="secondary-button" onClick={onReset}>Restore demo settings</button>
+              <Button variant="outline" size="sm" onClick={onReset}>Restore demo settings</Button>
             </div>
             <div className="form-grid">
-              <label><span>League name</span><input value={league.name} onChange={(event) => onLeagueChange({ ...league, name: event.target.value })} /></label>
-              <label><span>Team count</span><input type="number" min="8" max="20" value={league.teamCount} onChange={(event) => onLeagueChange({ ...league, teamCount: Number(event.target.value) })} /></label>
+              <label><span>League name</span><Input value={league.name} onChange={(event) => onLeagueChange({ ...league, name: event.target.value })} /></label>
+              <label><span>Team count</span><Input type="number" min="8" max="20" value={league.teamCount} onChange={(event) => onLeagueChange({ ...league, teamCount: Number(event.target.value) })} /></label>
               <label><span>Draft type</span><select value={league.draftType} onChange={(event) => onLeagueChange({ ...league, draftType: event.target.value as LeagueSettingsModel["draftType"] })}><option value="snake">Snake</option><option value="linear">Linear</option><option value="salary-cap">Salary cap</option></select></label>
-              <label><span>Scoring label</span><input value={league.scoringLabel} onChange={(event) => onLeagueChange({ ...league, scoringLabel: event.target.value })} /></label>
+              <label><span>Scoring label</span><Input value={league.scoringLabel} onChange={(event) => onLeagueChange({ ...league, scoringLabel: event.target.value })} /></label>
             </div>
           </section>
 
@@ -132,7 +134,7 @@ export function LeagueSettings({
                 return (
                   <label key={option.key}>
                     <span>{option.label}<small>{option.eligiblePositions.join(" / ")}</small></span>
-                    <input type="number" min="0" max="5" value={count} aria-label={`${option.label} roster count`} onChange={(event) => updateRosterCount(option.label, option.eligiblePositions, Number(event.target.value))} />
+                    <Input type="number" min="0" max="5" value={count} aria-label={`${option.label} roster count`} onChange={(event) => updateRosterCount(option.label, option.eligiblePositions, Number(event.target.value))} />
                   </label>
                 );
               })}
@@ -148,7 +150,7 @@ export function LeagueSettings({
               {league.scoringRules.map((rule) => (
                 <label key={rule.stat}>
                   <span><strong>{rule.label}</strong><small>{statDescriptions[rule.stat] ?? rule.stat}</small></span>
-                  <input type="number" step="0.01" value={rule.pointsPerUnit} aria-label={`${rule.label} points`} onChange={(event) => updateScoringRule(rule.stat, Number(event.target.value))} />
+                  <Input type="number" step="0.01" value={rule.pointsPerUnit} aria-label={`${rule.label} points`} onChange={(event) => updateScoringRule(rule.stat, Number(event.target.value))} />
                 </label>
               ))}
             </div>

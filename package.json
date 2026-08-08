@@ -15,11 +15,16 @@
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
+    "@radix-ui/react-slot": "^1.3.3",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
     "drizzle-orm": "0.45.2",
+    "lucide-react": "^1.30.0",
     "next": "16.2.6",
     "react": "19.2.6",
     "react-dom": "19.2.6",
-    "read-excel-file": "^9.3.8"
+    "read-excel-file": "^9.3.8",
+    "tailwind-merge": "^3.6.0"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "1.37.1",

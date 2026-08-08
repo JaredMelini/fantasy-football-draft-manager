@@ -1,6 +1,15 @@
 "use client";
 
 import { useState, useSyncExternalStore } from "react";
+import {
+  Database,
+  FlaskConical,
+  LayoutDashboard,
+  ListOrdered,
+  ShieldCheck,
+  SlidersHorizontal,
+  WifiOff,
+} from "lucide-react";
 import { DraftRoom } from "./draft-room";
 import { LeagueSettings } from "./league-settings";
 import { MockLab } from "./mock-lab";
@@ -24,6 +33,8 @@ import type {
   OpponentStrategy,
   Player,
 } from "@/lib/domain/types";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 type AppView = "draft" | "mock" | "rankings" | "league" | "offline";
 
@@ -39,13 +50,14 @@ export function DraftManagerApp() {
   const state = storedState ?? DEFAULT_STATE;
   const { league, players, events, simulationSeed, opponentStrategy } = state;
 
-  const navItems: Array<{ id: AppView; label: string }> = [
-    { id: "draft", label: "Draft room" },
-    { id: "mock", label: "Mock Lab" },
-    { id: "rankings", label: "Rankings" },
-    { id: "league", label: "League setup" },
-    { id: "offline", label: "Offline Bridge" },
+  const navItems = [
+    { id: "draft" as const, label: "Draft Room", detail: "Live decisions", icon: LayoutDashboard },
+    { id: "mock" as const, label: "Mock Lab", detail: "Practice & replay", icon: FlaskConical },
+    { id: "rankings" as const, label: "Rankings", detail: "Your player board", icon: ListOrdered },
+    { id: "league" as const, label: "League Setup", detail: "Scoring & rosters", icon: SlidersHorizontal },
+    { id: "offline" as const, label: "Data & Backup", detail: "Offline Bridge", icon: Database },
   ];
+  const activeNav = navItems.find((item) => item.id === view)!;
 
   function saveState(changes: Partial<OfflineDraftPackage>) {
     saveLocalDraftSnapshot({ ...state, ...changes });
@@ -82,92 +94,107 @@ export function DraftManagerApp() {
 
   return (
     <main className="app-shell">
-      <header className="topbar">
-        <button className="brand brand-button" onClick={() => setView("draft")}>
-          <span className="brand-mark">FF</span>
-          <span>
+      <aside className="app-sidebar">
+        <Button variant="ghost" className="sidebar-brand" onClick={() => setView("draft")}>
+          <span className="brand-mark">DI</span>
+          <span className="brand-copy">
             <strong>Draft Intelligence</strong>
-            <small>Fantasy football manager</small>
+            <small>Fantasy football</small>
           </span>
-        </button>
+        </Button>
 
-        <nav className="main-nav" aria-label="Primary navigation">
+        <div className="sidebar-section-label">Workspace</div>
+        <nav className="sidebar-nav" aria-label="Primary navigation">
           {navItems.map((item) => (
-            <button
-              className={view === item.id ? "active" : ""}
+            <Button
+              variant="ghost"
+              className={`sidebar-nav-item ${view === item.id ? "active" : ""}`}
               key={item.id}
               onClick={() => setView(item.id)}
               aria-current={view === item.id ? "page" : undefined}
             >
-              {item.label}
-            </button>
+              <item.icon />
+              <span><strong>{item.label}</strong><small>{item.detail}</small></span>
+            </Button>
           ))}
         </nav>
 
-        <div className="connection-status" title="Offline companion is ready; Yahoo OAuth is awaiting approval">
-          <span className="status-dot ready" />
-          Offline companion ready
+        <div className="sidebar-footer">
+          <div className="privacy-chip"><ShieldCheck /><span><strong>Private workspace</strong><small>Saved on this device</small></span></div>
+          <Badge variant="success" className="sidebar-status"><WifiOff /> Offline companion ready</Badge>
         </div>
-      </header>
+      </aside>
 
-      {view === "draft" && (
-        <DraftRoom
-          key={`${league.teamCount}-${league.draftType}`}
-          league={league}
-          players={players}
-          events={events}
-          seed={simulationSeed}
-          strategy={opponentStrategy}
-          onEventsChange={(nextEvents) => saveState({ events: nextEvents })}
-          onResetDraft={() => resetDraft()}
-        />
-      )}
-      {view === "mock" && (
-        <MockLab
-          league={league}
-          players={players}
-          events={events}
-          seed={simulationSeed}
-          strategy={opponentStrategy}
-          onEventsChange={(nextEvents) => saveState({ events: nextEvents })}
-          onSeedChange={(seed: string) => saveState({ simulationSeed: seed })}
-          onStrategyChange={(strategy: OpponentStrategy) =>
-            saveState({ opponentStrategy: strategy })
-          }
-          onResetDraft={() => resetDraft()}
-          onOpenDraft={() => setView("draft")}
-        />
-      )}
-      {view === "rankings" && (
-        <RankingsStudio
-          players={players}
-          onPlayersChange={(nextPlayers: Player[]) =>
-            saveState({ players: nextPlayers })
-          }
-          onReset={() =>
-            saveState({ players: createDefaultOfflinePackage().players })
-          }
-        />
-      )}
-      {view === "league" && (
-        <LeagueSettings
-          league={league}
-          players={players}
-          onLeagueChange={updateLeague}
-          onReset={() => {
-            const restored = createDefaultOfflinePackage();
-            saveState({ league: restored.league, events: restored.events });
-          }}
-        />
-      )}
-      {view === "offline" && (
-        <OfflineBridge
-          state={state}
-          onImport={(imported) => saveLocalDraftSnapshot(imported)}
-          onReset={resetEverything}
-          onNavigate={setView}
-        />
-      )}
+      <div className="app-main">
+        <header className="app-header">
+          <div>
+            <span>{activeNav.detail}</span>
+            <strong>{activeNav.label}</strong>
+          </div>
+          <Badge variant="success" className="header-status"><span className="status-dot ready" /> Ready without Yahoo API</Badge>
+        </header>
+
+        <div className="app-content">
+          {view === "draft" && (
+            <DraftRoom
+              key={`${league.teamCount}-${league.draftType}`}
+              league={league}
+              players={players}
+              events={events}
+              seed={simulationSeed}
+              strategy={opponentStrategy}
+              onEventsChange={(nextEvents) => saveState({ events: nextEvents })}
+              onResetDraft={() => resetDraft()}
+            />
+          )}
+          {view === "mock" && (
+            <MockLab
+              league={league}
+              players={players}
+              events={events}
+              seed={simulationSeed}
+              strategy={opponentStrategy}
+              onEventsChange={(nextEvents) => saveState({ events: nextEvents })}
+              onSeedChange={(seed: string) => saveState({ simulationSeed: seed })}
+              onStrategyChange={(strategy: OpponentStrategy) =>
+                saveState({ opponentStrategy: strategy })
+              }
+              onResetDraft={() => resetDraft()}
+              onOpenDraft={() => setView("draft")}
+            />
+          )}
+          {view === "rankings" && (
+            <RankingsStudio
+              players={players}
+              onPlayersChange={(nextPlayers: Player[]) =>
+                saveState({ players: nextPlayers })
+              }
+              onReset={() =>
+                saveState({ players: createDefaultOfflinePackage().players })
+              }
+            />
+          )}
+          {view === "league" && (
+            <LeagueSettings
+              league={league}
+              players={players}
+              onLeagueChange={updateLeague}
+              onReset={() => {
+                const restored = createDefaultOfflinePackage();
+                saveState({ league: restored.league, events: restored.events });
+              }}
+            />
+          )}
+          {view === "offline" && (
+            <OfflineBridge
+              state={state}
+              onImport={(imported) => saveLocalDraftSnapshot(imported)}
+              onReset={resetEverything}
+              onNavigate={setView}
+            />
+          )}
+        </div>
+      </div>
     </main>
   );
 }

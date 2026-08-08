@@ -13,6 +13,8 @@ import type {
   Player,
 } from "@/lib/domain/types";
 import { buildDemoTeams } from "@/lib/sample-data";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 interface MockLabProps {
   league: LeagueSettings;
@@ -107,11 +109,11 @@ export function MockLab({
           </p>
         </div>
         <div className="mock-controls panel">
-          <label><span>Simulation seed</span><input value={seed} onChange={(event) => onSeedChange(event.target.value || "draft-2026")} /></label>
+          <label><span>Simulation seed</span><Input value={seed} onChange={(event) => onSeedChange(event.target.value || "draft-2026")} /></label>
           <label><span>Opponent strategy</span><select value={strategy} onChange={(event) => onStrategyChange(event.target.value as OpponentStrategy)}><option value="balanced">Balanced</option><option value="best-available">Best available</option><option value="needs-first">Roster needs first</option></select></label>
           <div className="mock-control-actions">
-            <button className="secondary-button" onClick={advanceToUser} disabled={complete}>{currentTeam.isUser ? "Make my pick" : "Advance to my pick"}</button>
-            <button className="primary-button compact-button" onClick={finishMock} disabled={complete}>Finish mock</button>
+            <Button variant="secondary" size="sm" onClick={advanceToUser} disabled={complete}>{currentTeam.isUser ? "Make my pick" : "Advance to my pick"}</Button>
+            <Button size="sm" onClick={finishMock} disabled={complete}>Finish mock</Button>
           </div>
         </div>
       </div>
@@ -130,7 +132,7 @@ export function MockLab({
         <section className="replay-card panel">
           <div className="section-heading">
             <div><p className="eyebrow">Exact replay</p><h2>Event {throughSequence} of {maximumSequence}</h2></div>
-            <button className="secondary-button" onClick={() => setReplayPosition("live")} disabled={replayPosition === "live"}>Jump to live</button>
+            <Button variant="outline" size="sm" onClick={() => setReplayPosition("live")} disabled={replayPosition === "live"}>Jump to live</Button>
           </div>
           <input
             className="replay-slider"
@@ -174,7 +176,7 @@ export function MockLab({
         <aside className="event-timeline panel">
           <div className="section-heading">
             <div><p className="eyebrow">Decision history</p><h2>Pick replay</h2></div>
-            <button className="secondary-button" onClick={() => { onResetDraft(); setReplayPosition("live"); }}>Reset</button>
+            <Button variant="ghost" size="sm" onClick={() => { onResetDraft(); setReplayPosition("live"); }}>Reset</Button>
           </div>
           <div className="timeline-list">
             {[...replayed.activePickEvents].reverse().map((event) => {

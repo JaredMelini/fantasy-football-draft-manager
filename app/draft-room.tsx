@@ -32,6 +32,10 @@ import type {
   PlayerPosition,
 } from "@/lib/domain/types";
 import { buildDemoTeams } from "@/lib/sample-data";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 
 function formatPoints(value: number): string {
   return value.toFixed(1);
@@ -227,9 +231,9 @@ export function DraftRoom({
           </small>
         </div>
         <div className="context-actions">
-          <button className="secondary-button" onClick={() => setShowQuickCapture((current) => !current)}>{showQuickCapture ? "Close capture" : "Quick capture"}</button>
-          <button className="secondary-button" onClick={undoLastPick} disabled={picks.length === 0}>Undo last</button>
-          <button className="ghost-button" onClick={onResetDraft}>Reset session</button>
+          <Button variant="outline" size="sm" onClick={() => setShowQuickCapture((current) => !current)}>{showQuickCapture ? "Close capture" : "Quick capture"}</Button>
+          <Button variant="outline" size="sm" onClick={undoLastPick} disabled={picks.length === 0}>Undo last</Button>
+          <Button variant="ghost" size="sm" onClick={onResetDraft}>Reset session</Button>
         </div>
       </section>
 
@@ -238,13 +242,13 @@ export function DraftRoom({
       </div>
 
       {showQuickCapture && (
-        <section className="quick-capture panel">
+        <Card className="quick-capture">
           <div>
             <p className="eyebrow">API-free live companion</p>
             <h2>Paste picks in draft order</h2>
             <p>Copy or type one pick per line. Player names can appear inside longer lines such as “1.07 — Amon-Ra St. Brown — My Team.” Team ownership is reconstructed from your draft order.</p>
           </div>
-          <textarea value={captureText} onChange={(event) => setCaptureText(event.target.value)} placeholder={"Bijan Robinson\nJahmyr Gibbs\nJa'Marr Chase"} aria-label="Draft picks in order" autoFocus />
+          <Textarea value={captureText} onChange={(event) => setCaptureText(event.target.value)} placeholder={"Bijan Robinson\nJahmyr Gibbs\nJa'Marr Chase"} aria-label="Draft picks in order" autoFocus />
           <div className="capture-results">
             <span><strong>{capturePreview.matches.length}</strong> matched</span>
             <span><strong>{capturePreview.unmatched.length}</strong> unmatched</span>
@@ -253,8 +257,8 @@ export function DraftRoom({
               <small>Review: {[...capturePreview.unmatched, ...capturePreview.duplicates].slice(0, 4).join(", ")}</small>
             )}
           </div>
-          <button className="primary-button compact-button" disabled={capturePreview.matches.length === 0} onClick={importCapturedPicks}>Import {Math.min(capturePreview.matches.length, maximumPicks - picks.length)} picks</button>
-        </section>
+          <Button size="sm" disabled={capturePreview.matches.length === 0} onClick={importCapturedPicks}>Import {Math.min(capturePreview.matches.length, maximumPicks - picks.length)} picks</Button>
+        </Card>
       )}
 
       <div className="workspace-grid" id="draft-room">
@@ -280,9 +284,9 @@ export function DraftRoom({
                 <div><span>Wait urgency</span><strong>+{selected.breakdown.availabilityUrgency}</strong></div>
                 <div><span>Risk adjustment</span><strong>−{selected.breakdown.riskPenalty}</strong></div>
               </div>
-              <button className="primary-button" onClick={() => logPick(selected.player.id)}>
+              <Button className="w-full" onClick={() => logPick(selected.player.id)}>
                 {currentTeam.isUser ? "Draft to my team" : `Log for ${currentTeam.name}`}
-              </button>
+              </Button>
             </>
           ) : (
             <p className="empty-state-copy">Every active player has been assigned. The immutable event log is ready to replay.</p>
@@ -303,13 +307,13 @@ export function DraftRoom({
             <div><p className="eyebrow">Your rankings</p><h2>Available players</h2></div>
             {!draftComplete && !currentTeam.isUser && (
               <div className="simulation-actions">
-                <button className="secondary-button" onClick={simulateOne}>Sim one</button>
-                <button className="secondary-button" onClick={simulateToUser}>Sim to my pick</button>
+                <Button variant="outline" size="sm" onClick={simulateOne}>Sim one</Button>
+                <Button variant="secondary" size="sm" onClick={simulateToUser}>Sim to my pick</Button>
               </div>
             )}
           </div>
           <div className="board-filters">
-            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search available players" aria-label="Search available players" />
+            <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search available players" aria-label="Search available players" />
             <select value={position} onChange={(event) => setPosition(event.target.value as PlayerPosition | "ALL")} aria-label="Filter by position">
               <option value="ALL">All positions</option>
               {(["QB", "RB", "WR", "TE", "K", "DST"] as PlayerPosition[]).map((item) => <option value={item} key={item}>{item}</option>)}
@@ -334,7 +338,7 @@ export function DraftRoom({
                       <td>{formatPoints(calculateFantasyPoints(player, league.scoringRules))}</td>
                       <td>{player.adp.toFixed(1)}</td>
                       <td>
-                        <button className="log-pick" onClick={() => logPick(player.id)} aria-label={`Log ${player.name} for ${currentTeam.name}`}>{currentTeam.isUser ? "Draft" : "Log"}</button>
+                        <Button size="sm" className="h-8 px-3 text-xs" onClick={() => logPick(player.id)} aria-label={`Log ${player.name} for ${currentTeam.name}`}>{currentTeam.isUser ? "Draft" : "Log"}</Button>
                         {recommendation && <small className="decision-score">{recommendation.breakdown.total}</small>}
                       </td>
                     </tr>

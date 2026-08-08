@@ -394,3 +394,5 @@ Official references: [Yahoo Fantasy API documentation](https://sports.yahoo.com/
 - [x] API-free Quick Capture for ordered draft logs with duplicate and unmatched review.
 - [x] Provider-neutral connector contract ready for Yahoo OAuth credentials.
 - [x] Yahoo access review confirmed that private league synchronization cannot be safely replaced by public metadata.
+- [x] Dark shadcn interface redesign with responsive sidebar navigation and standardized controls.
+- [x] High-contrast draft, mock, rankings, settings, and backup layouts optimized for quick scanning.

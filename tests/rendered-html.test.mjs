@@ -28,13 +28,13 @@ test("server-renders the fantasy football draft room", async () => {
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
-  assert.match(html, /<title>Fantasy Football Draft Manager<\/title>/i);
+  assert.match(html, /<title>Draft Intelligence — Fantasy Football Draft Manager<\/title>/i);
   assert.match(html, /Sunday Night Strategists/);
-  assert.match(html, /Draft room/);
+  assert.match(html, /Draft Room/);
   assert.match(html, /Mock Lab/);
   assert.match(html, /Offline Bridge/);
   assert.match(html, /Rankings/);
-  assert.match(html, /League setup/);
+  assert.match(html, /League Setup/);
   assert.match(html, /Best decision now/);
   assert.match(html, /Available players/);
   assert.match(html, /Draft event log active/);
