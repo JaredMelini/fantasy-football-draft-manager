@@ -7,6 +7,7 @@ import {
 import { createPickEvent, replayDraftEvents } from "./draft-session";
 import { recommendPlayers } from "./recommendation";
 import { assignRoster } from "./roster";
+import { getMarketAdp, getPositionRank, getPositionRankValue } from "./rankings";
 import type {
   DraftEvent,
   DraftTeam,
@@ -54,8 +55,22 @@ export function chooseOpponentPlayer(input: {
         league.rosterSlots,
       ).starters.length;
       const fillsNeed = filledAfter > filledBefore ? 1 : 0;
-      const marketValue = 110 - Math.abs(player.adp - overall) - player.adp * 0.2;
-      const personalValue = 100 - player.userRank;
+      const primaryPosition = player.positions[0];
+      const dedicatedSlots = league.rosterSlots.filter(
+        (slot) =>
+          slot.eligiblePositions.length === 1 &&
+          slot.eligiblePositions[0] === primaryPosition,
+      ).length;
+      const rosteredAtPosition = roster.filter((teammate) =>
+        teammate.positions.includes(primaryPosition),
+      ).length;
+      const positionOverload = Math.max(
+        0,
+        rosteredAtPosition - dedicatedSlots + 1,
+      );
+      const marketAdp = getMarketAdp(player, league.teamCount);
+      const marketValue = 110 - Math.abs(marketAdp - overall) - marketAdp * 0.2;
+      const personalValue = getPositionRankValue(player, available);
       const jitter = deterministicNoise(seed, `${overall}:${teamId}:${player.id}`) * 7;
       return {
         player,
@@ -63,12 +78,15 @@ export function chooseOpponentPlayer(input: {
           marketValue * marketWeight +
           personalValue * rankWeight +
           fillsNeed * needWeight +
-          jitter,
+          jitter -
+          positionOverload * 24,
       };
     })
     .sort(
       (a, b) =>
-        b.score - a.score || a.player.userRank - b.player.userRank,
+        b.score - a.score ||
+        getPositionRank(a.player, available) -
+          getPositionRank(b.player, available),
     )[0]?.player;
 }
 
@@ -118,7 +136,25 @@ function appendSimulatedPick(input: {
       limit: input.players.length,
     });
     const filledBefore = assignRoster(roster, input.league.rosterSlots).starters.length;
+    const dedicatedNeeds = new Set(
+      input.league.rosterSlots
+        .filter((slot) => slot.eligiblePositions.length === 1)
+        .map((slot) => slot.eligiblePositions[0])
+        .filter((position, _index, positions) => {
+          const required = positions.filter((item) => item === position).length;
+          const rostered = roster.filter((player) =>
+            player.positions.includes(position),
+          ).length;
+          return rostered < required;
+        }),
+    );
     selected =
+      recommendations.find(
+        ({ player }) =>
+          player.positions.some((position) => dedicatedNeeds.has(position)) &&
+          assignRoster([...roster, player], input.league.rosterSlots).starters
+            .length > filledBefore,
+      )?.player ??
       recommendations.find(
         ({ player }) =>
           assignRoster([...roster, player], input.league.rosterSlots).starters

@@ -10,10 +10,14 @@ export function calculateFantasyPoints(
   player: Player,
   scoringRules: LeagueSettings["scoringRules"],
 ): number {
-  return scoringRules.reduce((total, rule) => {
+  const modeled = scoringRules.reduce((total, rule) => {
     const projectedValue = player.projectedStats[rule.stat] ?? 0;
     return total + projectedValue * rule.pointsPerUnit;
   }, 0);
+  const hasModeledStats = scoringRules.some(
+    (rule) => player.projectedStats[rule.stat] !== undefined,
+  );
+  return hasModeledStats ? modeled : player.sourceProjectedPoints ?? modeled;
 }
 
 export function estimateDynamicReplacementBaselines(

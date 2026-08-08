@@ -48,6 +48,12 @@ export interface Player {
   userRank: number;
   tier: number;
   risk: number;
+  positionRanks?: Partial<Record<PlayerPosition, number>>;
+  positionTiers?: Partial<Record<PlayerPosition, number>>;
+  upside?: number;
+  rankingSource?: string;
+  sourceAdp?: string;
+  sourceProjectedPoints?: number;
   excluded?: boolean;
   notes?: string;
   externalIds?: Record<string, string>;
@@ -104,6 +110,7 @@ export interface RecommendationBreakdown {
   availabilityUrgency: number;
   opponentDemand: number;
   opportunityCost: number;
+  upsideValue: number;
   riskPenalty: number;
   total: number;
 }

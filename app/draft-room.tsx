@@ -18,6 +18,11 @@ import { recommendPlayers } from "@/lib/domain/recommendation";
 import { assignRoster } from "@/lib/domain/roster";
 import { calculateFantasyPoints } from "@/lib/domain/scoring";
 import {
+  getPositionRank,
+  getPositionTier,
+  primaryPosition,
+} from "@/lib/domain/rankings";
+import {
   simulateNextPick,
   simulateUntilUserTurn,
 } from "@/lib/domain/simulation";
@@ -150,13 +155,22 @@ export function DraftRoom({
         riskTolerance,
       });
   const best = recommendations[0];
+  const recommendationScores = new Map(
+    recommendations.map((item) => [item.player.id, item.breakdown.total]),
+  );
   const availablePlayers = players
     .filter((player) => !draftedIds.has(player.id) && !player.excluded)
     .filter((player) => position === "ALL" || player.positions.includes(position))
     .filter((player) =>
       `${player.name} ${player.nflTeam}`.toLowerCase().includes(search.toLowerCase()),
     )
-    .sort((a, b) => a.userRank - b.userRank);
+    .sort((a, b) =>
+      position === "ALL"
+        ? (recommendationScores.get(b.id) ?? -Infinity) -
+            (recommendationScores.get(a.id) ?? -Infinity)
+        : getPositionRank(a, players, position) -
+          getPositionRank(b, players, position),
+    );
   const selected = selectedPlayerId
     ? recommendations.find(
         (recommendation) => recommendation.player.id === selectedPlayerId,
@@ -330,7 +344,7 @@ export function DraftRoom({
             <>
               <div className="player-meta large">
                 <span className={`position ${selected.player.positions[0].toLowerCase()}`}>{selected.player.positions[0]}</span>
-                <span>{selected.player.nflTeam}</span><span>Tier {selected.player.tier}</span><span>Bye {selected.player.byeWeek}</span>
+                <span>{selected.player.nflTeam}</span><span>{primaryPosition(selected.player)}{getPositionRank(selected.player, players)}</span><span>Tier {getPositionTier(selected.player)}</span><span>Bye {selected.player.byeWeek}</span>
               </div>
               <div className="decision-strip">
                 <span className={`decision-chip ${selected.decision}`}>{decisionLabel(selected.decision)}</span>
@@ -375,6 +389,7 @@ export function DraftRoom({
                 <div><span>Wait urgency</span><strong>+{selected.breakdown.availabilityUrgency}</strong></div>
                 <div><span>Opponent pressure</span><strong>+{selected.breakdown.opponentDemand}</strong></div>
                 <div><span>Wait opportunity</span><strong>+{selected.breakdown.opportunityCost}</strong></div>
+                <div><span>Upside profile</span><strong>+{selected.breakdown.upsideValue}</strong></div>
                 <div><span>Risk adjustment</span><strong>−{selected.breakdown.riskPenalty}</strong></div>
               </div>
               <Button className="w-full" onClick={() => logPick(selected.player.id)}>
@@ -415,21 +430,21 @@ export function DraftRoom({
           </div>
           <div className="table-wrap draft-player-table">
             <table>
-              <thead><tr><th>My rank</th><th>Player</th><th>Proj.</th><th>ADP</th><th><span className="sr-only">Action</span></th></tr></thead>
+              <thead><tr><th>Pos. rank</th><th>Player</th><th>Proj.</th><th>ADP</th><th><span className="sr-only">Action</span></th></tr></thead>
               <tbody>
                 {availablePlayers.slice(0, 30).map((player) => {
                   const recommendation = recommendations.find((item) => item.player.id === player.id);
                   return (
                     <tr key={player.id} className={best?.player.id === player.id ? "top-player" : ""}>
-                      <td><span className="rank-number">{player.userRank}</span></td>
+                      <td><span className="rank-number">{primaryPosition(player)}{getPositionRank(player, players)}</span></td>
                       <td>
                         <button className="player-name" onClick={() => setSelectedPlayerId(player.id)}>
                           <strong>{player.name}</strong>
-                          <span className="player-meta"><b className={`position ${player.positions[0].toLowerCase()}`}>{player.positions[0]}</b>{player.nflTeam} · Tier {player.tier}</span>
+                          <span className="player-meta"><b className={`position ${player.positions[0].toLowerCase()}`}>{player.positions[0]}</b>{player.nflTeam} · Tier {getPositionTier(player)}</span>
                         </button>
                       </td>
                       <td>{formatPoints(calculateFantasyPoints(player, league.scoringRules))}</td>
-                      <td>{player.adp.toFixed(1)}</td>
+                      <td>{player.sourceAdp ?? player.adp.toFixed(1)}</td>
                       <td>
                         <Button size="sm" className="h-8 px-3 text-xs" onClick={() => logPick(player.id)} aria-label={`Log ${player.name} for ${currentTeam.name}`}>{currentTeam.isUser ? "Draft" : "Log"}</Button>
                         {recommendation && <small className="decision-score">{recommendation.breakdown.total}</small>}

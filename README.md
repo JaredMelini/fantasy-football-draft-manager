@@ -14,7 +14,8 @@ The application will use league-specific settings and live draft state to produc
 
 - Import league size, roster positions, scoring categories, scoring modifiers, teams, rosters, and documented draft results through the Yahoo Fantasy Sports API.
 - Support user-supplied player rankings through CSV or spreadsheet imports, including suggested matches and manual review for unmatched or duplicate rows.
-- Allow rankings, tiers, preferences, and player notes to be edited manually.
+- Import multiple official Fantasy Footballers UDK position CSV exports in one step, entirely in the browser.
+- Allow position-specific rankings and tiers, risk, upside, preferences, and player notes to be edited manually.
 - Recalculate player value for the league's exact scoring and roster configuration.
 - Track drafted players and each team's roster during a draft when supported by the Yahoo API.
 - Provide manual draft tracking and an internal mock-draft simulator as fallbacks.
@@ -42,11 +43,11 @@ The application will not submit draft picks, change rosters, scrape Yahoo web pa
 - Yahoo credentials and tokens will not be exposed to the browser or committed to this repository.
 - Yahoo-derived data will be minimized, secured, and displayed only to the authorized account owner.
 - API refresh guidance, rate limits, attribution requirements, and applicable retention requirements will be followed.
-- Third-party rankings or projections will be user-supplied or obtained under an appropriate license.
+- Third-party rankings or projections will be user-supplied or obtained under an appropriate license. Licensed UDK exports are processed only in the user's browser and are not bundled with, uploaded by, or redistributed through this project.
 
 ## Availability
 
-The foundation, league-settings audit, rankings workflow, event-sourced manual draft, internal Mock Lab, Offline Bridge, and Advanced Decision Engine are implemented. Recommendations account for live replacement levels, opponent needs, positional runs, risk preference, seeded wait scenarios, and completed-roster forecasts. Best Overall, Safest, Upside, and Positional Pivot views compare the leading candidates. Yahoo connectivity will be added behind the prepared provider adapter after API access and live-draft behavior are verified.
+The foundation, league-settings audit, position-based rankings workflow, event-sourced manual draft, internal Mock Lab, Offline Bridge, and Advanced Decision Engine are implemented. Recommendations account for position rank and tier, live replacement levels, opponent needs, positional runs, risk and upside preference, seeded wait scenarios, and completed-roster forecasts. Best Overall, Safest, Upside, and Positional Pivot views compare the leading candidates. Yahoo connectivity will be added behind the prepared provider adapter after API access and live-draft behavior are verified.
 
 ## Project plan
 

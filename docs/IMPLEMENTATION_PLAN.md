@@ -322,6 +322,7 @@ Official references: [Yahoo Fantasy API documentation](https://sports.yahoo.com/
 - League settings editor and audit
 - CSV import and player matching
 - Rankings Studio and saved overrides
+- Position-specific ranks and tiers with UDK multi-file import
 - Projection coverage reporting
 
 ### M2 — Draft state and internal mocks (complete)
@@ -405,3 +406,6 @@ Official references: [Yahoo Fantasy API documentation](https://sports.yahoo.com/
 - [x] Best Overall, Safest, Upside, and Positional Pivot recommendation lenses with floor and ceiling grades.
 - [x] M4 deterministic rollout, performance, type, lint, and rendered-output verification.
 - [x] Expandable rankings-import review with suggested matches, manual assignment, duplicate protection, and explicit ignore decisions.
+- [x] Fantasy Footballers UDK workflow using the site's official per-position CSV exports with local multi-file parsing.
+- [x] Position tabs and independent QB, RB, WR, TE, K, and DST rank/tier editing.
+- [x] Decision Engine position-rank percentiles, position-local tier cliffs, UDK risk/upside signals, and realistic opponent roster limits.

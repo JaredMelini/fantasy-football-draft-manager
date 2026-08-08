@@ -10,7 +10,7 @@
     "build": "vinext build",
     "start": "vinext start",
     "test": "npm run test:unit && npm run build && node --test tests/rendered-html.test.mjs",
-    "test:unit": "tsx --test tests/domain/*.test.ts",
+    "test:unit": "tsx --test tests/domain/draft-session.test.ts tests/domain/engine.test.ts tests/domain/import-and-audit.test.ts tests/domain/offline-bridge.test.ts",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate"
   },

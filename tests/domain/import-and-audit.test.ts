@@ -4,6 +4,7 @@ import { auditLeagueSettings, auditSummary } from "../../lib/domain/audit";
 import {
   applyRankingImport,
   buildRankingImport,
+  buildUdkRankingImport,
   guessRankingColumnMap,
   parseDelimitedRankings,
   rankingUpdateFromReview,
@@ -92,6 +93,41 @@ test("normalizes spreadsheet rows into the universal ranking table", () => {
 
   assert.deepEqual(table.headers, ["Rank", "Player", "Active"]);
   assert.deepEqual(table.rows, [[1, "Bijan Robinson", "true"]]);
+});
+
+test("imports UDK ranks and tiers as position-specific values", () => {
+  const table = parseDelimitedRankings(
+    [
+      "Name,Position,Team,Bye Week,Rank,Points,Risk,Upside,ADP,Tier",
+      "Brock Bowers,TE,LV,8,1,260.3,2.5,9.8,3.04,1",
+      "New Rookie,TE,FA,9,8,141.2,4.0,8.0,14.02,4",
+    ].join("\n"),
+  );
+  const result = buildUdkRankingImport([table], demoPlayers);
+
+  assert.equal(result.errors.length, 0);
+  assert.equal(result.updates.length, 1);
+  assert.equal(result.newPlayers.length, 1);
+  const updated = applyRankingImport(
+    demoPlayers,
+    result.updates,
+    result.newPlayers,
+  );
+  const bowersBefore = demoPlayers.find((player) => player.id === "bowers")!;
+  const bowers = updated.find((player) => player.id === "bowers")!;
+
+  assert.equal(bowers.positionRanks?.TE, 1);
+  assert.equal(bowers.positionTiers?.TE, 1);
+  assert.equal(bowers.risk, 0.25);
+  assert.equal(bowers.upside, 0.98);
+  assert.equal(bowers.sourceAdp, "3.04");
+  assert.equal(bowers.rankingSource, "Fantasy Footballers UDK");
+  assert.equal(bowers.userRank, bowersBefore.userRank);
+  assert.equal(bowers.adp, bowersBefore.adp);
+  const rookie = updated.find((player) => player.name === "New Rookie")!;
+  assert.equal(rookie.positionRanks?.TE, 8);
+  assert.equal(rookie.sourceProjectedPoints, 141.2);
+  assert.equal(rookie.sourceAdp, "14.02");
 });
 
 test("audits modeled settings and flags unsupported projection coverage", () => {

@@ -1,6 +1,6 @@
 import type { Player, PlayerPosition } from "../domain/types";
 
-export type RankingField = "player" | "rank" | "team" | "position" | "tier" | "adp" | "notes" | "externalId";
+export type RankingField = "player" | "rank" | "team" | "position" | "tier" | "adp" | "risk" | "upside" | "notes" | "externalId";
 
 export type RankingColumnMap = Partial<Record<RankingField, number>>;
 
@@ -14,8 +14,13 @@ export interface RankingImportUpdate {
   sourceName: string;
   matchedName: string;
   rank: number;
+  position?: PlayerPosition;
   tier?: number;
   adp?: number;
+  sourceAdp?: string;
+  risk?: number;
+  upside?: number;
+  source?: string;
   notes?: string;
 }
 
@@ -37,12 +42,15 @@ export interface RankingReviewRow {
   rank: number;
   tier?: number;
   adp?: number;
+  risk?: number;
+  upside?: number;
   notes?: string;
   suggestions: RankingReviewSuggestion[];
 }
 
 export interface RankingImportResult {
   updates: RankingImportUpdate[];
+  newPlayers: Player[];
   unmatched: string[];
   duplicates: string[];
   reviewRows: RankingReviewRow[];
@@ -56,6 +64,8 @@ const aliases: Record<RankingField, string[]> = {
   position: ["position", "pos"],
   tier: ["tier", "group"],
   adp: ["adp", "average draft position", "avg pick"],
+  risk: ["risk", "risk rating"],
+  upside: ["upside", "upside rating"],
   notes: ["notes", "note", "comments"],
   externalId: ["yahoo id", "player id", "external id"],
 };
@@ -239,7 +249,8 @@ function matchPlayer(
   if (!name) return undefined;
   let candidates = players.filter((player) => normalize(player.name) === name);
   const team = normalize(cell(row, map, "team"));
-  const position = normalize(cell(row, map, "position")).toUpperCase() as PlayerPosition;
+  const rawPosition = normalize(cell(row, map, "position")).toUpperCase();
+  const position = (rawPosition === "D" || rawPosition === "D ST" ? "DST" : rawPosition) as PlayerPosition;
 
   if (team) {
     candidates = candidates.filter(
@@ -258,9 +269,11 @@ export function buildRankingImport(
   table: RankingTable,
   players: Player[],
   map: RankingColumnMap,
+  options: { mode?: "overall" | "position"; source?: string } = {},
 ): RankingImportResult {
   const result: RankingImportResult = {
     updates: [],
+    newPlayers: [],
     unmatched: [],
     duplicates: [],
     reviewRows: [],
@@ -282,6 +295,18 @@ export function buildRankingImport(
       result.errors.push(`Row ${rowIndex + 2}: rank must be a positive number.`);
       return;
     }
+    const sourcePosition = String(cell(row, map, "position") ?? "")
+      .trim()
+      .toUpperCase()
+      .replace("D/ST", "DST")
+      .replace(/^D$/, "DST") as PlayerPosition;
+    if (
+      options.mode === "position" &&
+      !(["QB", "RB", "WR", "TE", "K", "DST"] as string[]).includes(sourcePosition)
+    ) {
+      result.errors.push(`Row ${rowIndex + 2}: a supported position is required.`);
+      return;
+    }
     const matched = matchPlayer(row, map, players);
     if (!matched) {
       result.unmatched.push(sourceName);
@@ -291,17 +316,19 @@ export function buildRankingImport(
         rowNumber: rowIndex + 2,
         sourceName,
         sourceTeam: String(cell(row, map, "team") ?? "").trim() || undefined,
-        sourcePosition:
-          String(cell(row, map, "position") ?? "").trim() || undefined,
+        sourcePosition: sourcePosition || undefined,
         rank,
         tier: numeric(cell(row, map, "tier")),
         adp: numeric(cell(row, map, "adp")),
+        risk: numeric(cell(row, map, "risk")),
+        upside: numeric(cell(row, map, "upside")),
         notes: String(cell(row, map, "notes") ?? "").trim() || undefined,
         suggestions: suggestPlayers(row, map, players),
       });
       return;
     }
-    if (seenPlayerIds.has(matched.id)) {
+    const duplicateKey = options.mode === "position" ? `${matched.id}:${sourcePosition}` : matched.id;
+    if (seenPlayerIds.has(duplicateKey)) {
       result.duplicates.push(sourceName);
       const suggestions = suggestPlayers(row, map, players);
       const matchedSuggestion = suggestions.find(
@@ -319,11 +346,12 @@ export function buildRankingImport(
         rowNumber: rowIndex + 2,
         sourceName,
         sourceTeam: String(cell(row, map, "team") ?? "").trim() || undefined,
-        sourcePosition:
-          String(cell(row, map, "position") ?? "").trim() || undefined,
+        sourcePosition: sourcePosition || undefined,
         rank,
         tier: numeric(cell(row, map, "tier")),
         adp: numeric(cell(row, map, "adp")),
+        risk: numeric(cell(row, map, "risk")),
+        upside: numeric(cell(row, map, "upside")),
         notes: String(cell(row, map, "notes") ?? "").trim() || undefined,
         suggestions: [
           matchedSuggestion,
@@ -334,14 +362,22 @@ export function buildRankingImport(
       });
       return;
     }
-    seenPlayerIds.add(matched.id);
+    seenPlayerIds.add(duplicateKey);
     result.updates.push({
       playerId: matched.id,
       sourceName,
       matchedName: matched.name,
       rank,
+      position: options.mode === "position" ? sourcePosition : undefined,
       tier: numeric(cell(row, map, "tier")),
-      adp: numeric(cell(row, map, "adp")),
+      adp: options.mode === "position" ? undefined : numeric(cell(row, map, "adp")),
+      sourceAdp:
+        options.mode === "position"
+          ? String(cell(row, map, "adp") ?? "").trim() || undefined
+          : undefined,
+      risk: numeric(cell(row, map, "risk")),
+      upside: numeric(cell(row, map, "upside")),
+      source: options.source,
       notes: String(cell(row, map, "notes") ?? "").trim() || undefined,
     });
   });
@@ -352,14 +388,25 @@ export function buildRankingImport(
 export function rankingUpdateFromReview(
   row: RankingReviewRow,
   player: Player,
+  options: { mode?: "overall" | "position"; source?: string } = {},
 ): RankingImportUpdate {
+  const rawPosition = row.sourcePosition?.toUpperCase();
+  const position = (rawPosition === "D" || rawPosition === "D/ST" ? "DST" : rawPosition) as PlayerPosition | undefined;
   return {
     playerId: player.id,
     sourceName: row.sourceName,
     matchedName: player.name,
     rank: row.rank,
+    position: options.mode === "position" ? position : undefined,
     tier: row.tier,
     adp: row.adp,
+    sourceAdp:
+      options.mode === "position" && row.adp !== undefined
+        ? String(row.adp)
+        : undefined,
+    risk: row.risk,
+    upside: row.upside,
+    source: options.source,
     notes: row.notes,
   };
 }
@@ -367,17 +414,127 @@ export function rankingUpdateFromReview(
 export function applyRankingImport(
   players: Player[],
   updates: RankingImportUpdate[],
+  newPlayers: Player[] = [],
 ): Player[] {
   const byPlayerId = new Map(updates.map((update) => [update.playerId, update]));
-  return players.map((player) => {
+  const updatedPlayers = players.map((player) => {
     const update = byPlayerId.get(player.id);
     if (!update) return player;
+    if (update.position) {
+      return {
+        ...player,
+        positionRanks: {
+          ...player.positionRanks,
+          [update.position]: update.rank,
+        },
+        positionTiers: update.tier === undefined
+          ? player.positionTiers
+          : {
+              ...player.positionTiers,
+              [update.position]: update.tier,
+            },
+        risk: update.risk === undefined ? player.risk : Number(Math.min(1, Math.max(0, update.risk / 10)).toFixed(2)),
+        upside: update.upside === undefined ? player.upside : Number(Math.min(1, Math.max(0, update.upside / 10)).toFixed(2)),
+        rankingSource: update.source ?? player.rankingSource,
+        sourceAdp: update.sourceAdp ?? player.sourceAdp,
+        notes: update.notes ?? player.notes,
+      };
+    }
     return {
       ...player,
       userRank: update.rank,
       tier: update.tier ?? player.tier,
       adp: update.adp ?? player.adp,
+      risk:
+        update.risk === undefined
+          ? player.risk
+          : Number(Math.min(1, Math.max(0, update.risk / 10)).toFixed(2)),
+      upside:
+        update.upside === undefined
+          ? player.upside
+          : Number(Math.min(1, Math.max(0, update.upside / 10)).toFixed(2)),
       notes: update.notes ?? player.notes,
     };
   });
+  const existingIds = new Set(updatedPlayers.map((player) => player.id));
+  return [
+    ...updatedPlayers,
+    ...newPlayers.filter((player) => !existingIds.has(player.id)),
+  ];
+}
+
+export function buildUdkRankingImport(
+  tables: RankingTable[],
+  players: Player[],
+): RankingImportResult {
+  const combined: RankingImportResult = {
+    updates: [],
+    newPlayers: [],
+    unmatched: [],
+    duplicates: [],
+    reviewRows: [],
+    errors: [],
+  };
+  tables.forEach((table, tableIndex) => {
+    const result = buildRankingImport(
+      table,
+      players,
+      guessRankingColumnMap(table.headers),
+      { mode: "position", source: "Fantasy Footballers UDK" },
+    );
+    combined.updates.push(...result.updates);
+    const map = guessRankingColumnMap(table.headers);
+    const unmatchedRows = new Map(
+      result.reviewRows
+        .filter((row) => row.status === "unmatched")
+        .map((row) => [row.rowNumber, row]),
+    );
+    table.rows.forEach((row, rowIndex) => {
+      const review = unmatchedRows.get(rowIndex + 2);
+      if (!review) return;
+      const rawPosition = String(cell(row, map, "position") ?? "").toUpperCase();
+      const position = (rawPosition === "D" || rawPosition === "D/ST" ? "DST" : rawPosition) as PlayerPosition;
+      const name = String(cell(row, map, "player") ?? "").trim();
+      const team = String(cell(row, map, "team") ?? "FA").trim() || "FA";
+      if (!name || !(["QB", "RB", "WR", "TE", "K", "DST"] as string[]).includes(position)) return;
+      const rank = numeric(cell(row, map, "rank")) ?? review.rank;
+      const tier = numeric(cell(row, map, "tier")) ?? 1;
+      const risk = numeric(cell(row, map, "risk"));
+      const upside = numeric(cell(row, map, "upside"));
+      const pointsIndex = table.headers.findIndex((header) => normalize(header) === "points");
+      const byeIndex = table.headers.findIndex((header) => normalize(header) === "bye week");
+      const sourceAdp = String(cell(row, map, "adp") ?? "").trim() || undefined;
+      const fallbackAdp = sourceAdp?.match(/^(\d+)\.(\d{1,2})$/);
+      const slug = normalize(`${name}-${team}-${position}`).replace(/ /g, "-");
+      combined.newPlayers.push({
+        id: `udk-${slug}`,
+        name,
+        nflTeam: team,
+        positions: [position],
+        byeWeek: numeric(row[byeIndex]) ?? 0,
+        adp: fallbackAdp
+          ? (Number(fallbackAdp[1]) - 1) * 12 + Number(fallbackAdp[2])
+          : 180 + rank,
+        userRank: players.length + combined.newPlayers.length + 1,
+        tier,
+        risk: risk === undefined ? 0.5 : Number(Math.min(1, Math.max(0, risk / 10)).toFixed(2)),
+        upside: upside === undefined ? 0.5 : Number(Math.min(1, Math.max(0, upside / 10)).toFixed(2)),
+        positionRanks: { [position]: rank },
+        positionTiers: { [position]: tier },
+        rankingSource: "Fantasy Footballers UDK",
+        sourceAdp,
+        sourceProjectedPoints: numeric(row[pointsIndex]),
+        projectedStats: {},
+      });
+    });
+    combined.duplicates.push(...result.duplicates);
+    combined.errors.push(...result.errors);
+    combined.reviewRows.push(
+      ...result.reviewRows.filter((row) => row.status !== "unmatched").map((row) => ({
+        ...row,
+        id: `udk-${tableIndex}-${row.id}`,
+      })),
+    );
+  });
+  return combined;
 }

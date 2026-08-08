@@ -1382,6 +1382,74 @@ input {
   margin-top: 3px;
 }
 
+.udk-import-card {
+  background: linear-gradient(145deg, rgba(122, 162, 255, 0.1), rgba(67, 215, 199, 0.05));
+  border: 1px solid rgba(122, 162, 255, 0.28);
+  border-radius: 14px;
+  margin: 16px 0 20px;
+  padding: 14px;
+}
+
+.udk-import-card > div:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.udk-import-card strong {
+  font-size: 12px;
+}
+
+.udk-import-card span,
+.udk-import-card p {
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.udk-link {
+  color: var(--primary);
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 800;
+  margin-bottom: 10px;
+  text-decoration: none;
+}
+
+.compact-drop {
+  margin: 0;
+  padding: 14px 10px;
+}
+
+.compact-drop strong {
+  margin-top: 0;
+}
+
+.position-tabs {
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  padding: 0 22px 12px;
+}
+
+.position-tabs button {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 9px;
+  font-weight: 800;
+  padding: 7px 12px;
+}
+
+.position-tabs button.active {
+  background: rgba(122, 162, 255, 0.14);
+  border-color: rgba(122, 162, 255, 0.45);
+  color: #b8ccff;
+}
+
 .settings-hero {
   grid-template-columns: minmax(0, 1fr) 230px;
 }

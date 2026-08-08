@@ -4,6 +4,7 @@ import {
   calculateFantasyPoints,
   estimateDynamicReplacementBaselines,
 } from "./scoring";
+import { getMarketAdp, getPositionRank, getPositionRankValue } from "./rankings";
 import type {
   DraftPick,
   DraftTeam,
@@ -184,7 +185,6 @@ function chooseFuturePlayer(input: {
     input.roster,
     input.league.rosterSlots,
   ).starters.length;
-  const maximumRank = Math.max(...input.pool.map((player) => player.userRank), 1);
 
   return [...input.pool]
     .map((player) => {
@@ -199,7 +199,7 @@ function chooseFuturePlayer(input: {
         input.strategy === "needs" ? 20 : input.strategy === "balanced" ? 12 : 6;
       const valueWeight = input.strategy === "value" ? 1.25 : 1;
       const personalRank =
-        ((maximumRank - player.userRank + 1) / maximumRank) * 8;
+        getPositionRankValue(player, input.pool) * 0.8;
       const byeCollision = input.roster.filter(
         (teammate) => teammate.byeWeek === player.byeWeek,
       ).length;
@@ -215,7 +215,9 @@ function chooseFuturePlayer(input: {
     })
     .sort(
       (a, b) =>
-        b.score - a.score || a.player.userRank - b.player.userRank,
+        b.score - a.score ||
+        getPositionRank(a.player, input.pool) -
+          getPositionRank(b.player, input.pool),
     )[0]?.player;
 }
 
@@ -260,7 +262,7 @@ function summarizeCandidate(
       const spread = Math.max(4, input.league.teamCount / 2);
       const survivors = pool.filter((player) => {
         const survivalProbability = clamp(
-          1 / (1 + Math.exp((overall - player.adp) / spread)),
+          1 / (1 + Math.exp((overall - getMarketAdp(player, input.league.teamCount)) / spread)),
           0.01,
           0.99,
         );
@@ -337,7 +339,7 @@ export function analyzeCandidateRollouts(
     summaries,
     (summary) =>
       summary.ceilingRosterGrade +
-      (recommendationById.get(summary.playerId)?.player.risk ?? 0) * 4,
+      (recommendationById.get(summary.playerId)?.player.upside ?? 0.5) * 4,
   )!;
   const bestPlayer = recommendationById.get(best.playerId)!.player;
   const pivotPool = summaries.filter((summary) => {

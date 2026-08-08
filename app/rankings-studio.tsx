@@ -5,6 +5,7 @@ import type { ChangeEvent } from "react";
 import {
   applyRankingImport,
   buildRankingImport,
+  buildUdkRankingImport,
   guessRankingColumnMap,
   parseDelimitedRankings,
   rankingUpdateFromReview,
@@ -15,7 +16,8 @@ import type {
   RankingField,
   RankingTable,
 } from "@/lib/import/rankings";
-import type { Player } from "@/lib/domain/types";
+import type { Player, PlayerPosition } from "@/lib/domain/types";
+import { getPositionRank, getPositionTier } from "@/lib/domain/rankings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -32,11 +34,14 @@ const mappingFields: Array<{ field: RankingField; label: string; required?: bool
   { field: "position", label: "Position" },
   { field: "tier", label: "Tier" },
   { field: "adp", label: "ADP" },
+  { field: "risk", label: "Risk" },
+  { field: "upside", label: "Upside" },
   { field: "notes", label: "Notes" },
   { field: "externalId", label: "External ID" },
 ];
 
 const ignoredReviewValue = "__ignored__";
+const positions: PlayerPosition[] = ["QB", "RB", "WR", "TE", "K", "DST"];
 
 export function RankingsStudio({
   players,
@@ -51,18 +56,34 @@ export function RankingsStudio({
   const [importApplied, setImportApplied] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [reviewDecisions, setReviewDecisions] = useState<Record<string, string>>({});
+  const [importMode, setImportMode] = useState<"overall" | "position">("overall");
+  const [udkTables, setUdkTables] = useState<RankingTable[]>([]);
+  const [udkFileNames, setUdkFileNames] = useState<string[]>([]);
+  const [activePosition, setActivePosition] = useState<PlayerPosition>("RB");
 
   const preview = useMemo(
-    () => (table ? buildRankingImport(table, players, columnMap) : null),
-    [columnMap, players, table],
+    () =>
+      importMode === "position"
+        ? udkTables.length > 0
+          ? buildUdkRankingImport(udkTables, players)
+          : null
+        : table
+          ? buildRankingImport(table, players, columnMap)
+          : null,
+    [columnMap, importMode, players, table, udkTables],
   );
   const visiblePlayers = [...players]
+    .filter((player) => player.positions.includes(activePosition))
     .filter((player) =>
       `${player.name} ${player.nflTeam} ${player.positions.join(" ")}`
         .toLowerCase()
         .includes(search.toLowerCase()),
     )
-    .sort((a, b) => a.userRank - b.userRank);
+    .sort(
+      (a, b) =>
+        getPositionRank(a, players, activePosition) -
+        getPositionRank(b, players, activePosition),
+    );
   const reviewState = useMemo(() => {
     const automaticIds = new Set(
       preview?.updates.map((update) => update.playerId) ?? [],
@@ -92,7 +113,17 @@ export function RankingsStudio({
         return [];
       }
       const player = players.find((candidate) => candidate.id === playerId);
-      return player ? [rankingUpdateFromReview(row, player)] : [];
+      return player
+        ? [
+            rankingUpdateFromReview(row, player, {
+              mode: importMode,
+              source:
+                importMode === "position"
+                  ? "Fantasy Footballers UDK"
+                  : undefined,
+            }),
+          ]
+        : [];
     });
     const unresolvedRows = (preview?.reviewRows ?? []).filter(
       (row) => !reviewDecisions[row.id],
@@ -105,7 +136,7 @@ export function RankingsStudio({
       unresolvedRows,
       updates: [...(preview?.updates ?? []), ...manualUpdates],
     };
-  }, [players, preview, reviewDecisions]);
+  }, [importMode, players, preview, reviewDecisions]);
 
   async function handleFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -125,6 +156,7 @@ export function RankingsStudio({
         throw new Error("The selected file does not contain a header and ranking rows.");
       }
       setTable(parsed);
+      setImportMode("overall");
       setColumnMap(guessRankingColumnMap(parsed.headers));
       setFileName(file.name);
       setReviewDecisions({});
@@ -133,6 +165,38 @@ export function RankingsStudio({
       setTable(null);
       setFileName("");
       setFileError(error instanceof Error ? error.message : "Unable to read that file.");
+    } finally {
+      event.target.value = "";
+    }
+  }
+
+  async function handleUdkFiles(event: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files ?? []);
+    if (files.length === 0) return;
+    setFileError("");
+    setImportApplied(false);
+    try {
+      const parsed = await Promise.all(
+        files.map(async (file) => parseDelimitedRankings(await file.text())),
+      );
+      if (
+        parsed.some(
+          (item) => item.headers.length === 0 || item.rows.length === 0,
+        )
+      ) {
+        throw new Error("Every UDK CSV must contain a header and ranking rows.");
+      }
+      setUdkTables(parsed);
+      setUdkFileNames(files.map((file) => file.name));
+      setImportMode("position");
+      setReviewDecisions({});
+      setReviewOpen(true);
+    } catch (error) {
+      setUdkTables([]);
+      setUdkFileNames([]);
+      setFileError(
+        error instanceof Error ? error.message : "Unable to read those files.",
+      );
     } finally {
       event.target.value = "";
     }
@@ -148,14 +212,18 @@ export function RankingsStudio({
   }
 
   function applyImport() {
+    const readyCount =
+      reviewState.updates.length + (preview?.newPlayers.length ?? 0);
     if (
       !preview ||
       preview.errors.length > 0 ||
       reviewState.unresolvedRows.length > 0 ||
       reviewState.conflictRows.size > 0 ||
-      reviewState.updates.length === 0
+      readyCount === 0
     ) return;
-    onPlayersChange(applyRankingImport(players, reviewState.updates));
+    onPlayersChange(
+      applyRankingImport(players, reviewState.updates, preview.newPlayers),
+    );
     setImportApplied(true);
   }
 
@@ -185,6 +253,29 @@ export function RankingsStudio({
     );
   }
 
+  function updatePositionRanking(
+    player: Player,
+    field: "rank" | "tier",
+    value: number,
+  ) {
+    updatePlayer(
+      player.id,
+      field === "rank"
+        ? {
+            positionRanks: {
+              ...player.positionRanks,
+              [activePosition]: Math.max(1, value),
+            },
+          }
+        : {
+            positionTiers: {
+              ...player.positionTiers,
+              [activePosition]: Math.max(1, value),
+            },
+          },
+    );
+  }
+
   return (
     <section className="tool-page rankings-page">
       <div className="tool-hero">
@@ -192,13 +283,13 @@ export function RankingsStudio({
           <p className="eyebrow">Rankings Studio</p>
           <h1>Your board, not Yahoo&apos;s.</h1>
           <p>
-            Import a spreadsheet, review every match, then edit ranks, tiers,
-            ADP, and notes without losing your original player pool.
+            Import position rankings, review every match, then edit each
+            position&apos;s ranks and tiers independently.
           </p>
         </div>
         <div className="hero-stat-grid">
           <div><strong>{players.length}</strong><span>players</span></div>
-          <div><strong>{new Set(players.map((player) => player.tier)).size}</strong><span>tiers</span></div>
+          <div><strong>{positions.filter((item) => players.some((player) => player.positionRanks?.[item])).length}</strong><span>positions imported</span></div>
           <div><strong>{players.filter((player) => player.notes).length}</strong><span>notes</span></div>
         </div>
       </div>
@@ -213,6 +304,34 @@ export function RankingsStudio({
             CSV, TSV, and XLSX files are read locally. Nothing is sent to Yahoo
             or uploaded to a server.
           </p>
+          <div className="udk-import-card">
+            <div>
+              <strong>Fantasy Footballers UDK</strong>
+              <span>Position ranks + tiers + risk + upside</span>
+            </div>
+            <p>
+              While logged in, open each position, choose More → Download CSV,
+              then select all of the exports here at once. FLEX is not needed.
+            </p>
+            <a
+              className="udk-link"
+              href="https://www.thefantasyfootballers.com/2026-ultimate-draft-kit/udk-position-rankings/?position=QB"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Open UDK rankings ↗
+            </a>
+            <label className="file-drop compact-drop">
+              <input type="file" multiple accept=".csv" onChange={handleUdkFiles} />
+              <strong>
+                {udkFileNames.length > 0
+                  ? `${udkFileNames.length} UDK files selected`
+                  : "Select UDK CSV exports"}
+              </strong>
+              <small>QB, RB, WR, TE, D/ST, and K · processed together</small>
+            </label>
+          </div>
+          <div className="section-label">Or import another ranking file</div>
           <label className="file-drop">
             <input type="file" accept=".csv,.tsv,.txt,.xlsx" onChange={handleFile} />
             <span className="file-icon">↑</span>
@@ -221,9 +340,10 @@ export function RankingsStudio({
           </label>
           {fileError && <p className="form-error">{fileError}</p>}
 
-          {table && (
+          {preview && (
             <div className="mapping-area">
-              <div className="section-label">Column mapping</div>
+              {importMode === "overall" && table && (
+                <><div className="section-label">Column mapping</div>
               {mappingFields.map(({ field, label, required }) => (
                 <label className="mapping-row" key={field}>
                   <span>{label}{required ? " *" : ""}</span>
@@ -237,11 +357,12 @@ export function RankingsStudio({
                     ))}
                   </select>
                 </label>
-              ))}
+              ))}</>
+              )}
 
               {preview && (
                 <div className="import-summary">
-                  <div><strong>{reviewState.updates.length}</strong><span>ready</span></div>
+                  <div><strong>{reviewState.updates.length + preview.newPlayers.length}</strong><span>ready</span></div>
                   <div><strong>{preview.unmatched.length}</strong><span>unmatched</span></div>
                   <div><strong>{preview.duplicates.length}</strong><span>duplicates</span></div>
                   <div><strong>{preview.errors.length}</strong><span>errors</span></div>
@@ -309,7 +430,7 @@ export function RankingsStudio({
                               >
                                 <option value="">Choose player…</option>
                                 {[...players]
-                                  .sort((a, b) => a.userRank - b.userRank)
+                                  .sort((a, b) => a.name.localeCompare(b.name))
                                   .map((player) => (
                                     <option
                                       disabled={playerIsUsedElsewhere(player.id)}
@@ -359,7 +480,7 @@ export function RankingsStudio({
                   preview.errors.length > 0 ||
                   reviewState.unresolvedRows.length > 0 ||
                   reviewState.conflictRows.size > 0 ||
-                  reviewState.updates.length === 0
+                  reviewState.updates.length + preview.newPlayers.length === 0
                 }
                 onClick={applyImport}
               >
@@ -367,7 +488,7 @@ export function RankingsStudio({
                   ? "Import applied"
                   : reviewState.unresolvedRows.length > 0
                     ? `Review ${reviewState.unresolvedRows.length} remaining rows`
-                    : `Apply ${reviewState.updates.length} resolved rows`}
+                    : `Apply ${reviewState.updates.length + preview.newPlayers.length} resolved rows`}
               </Button>
             </div>
           )}
@@ -385,15 +506,29 @@ export function RankingsStudio({
             </label>
             <Button variant="outline" size="sm" onClick={onReset}>Restore demo rankings</Button>
           </div>
+          <div className="position-tabs" aria-label="Ranking position">
+            {positions.map((item) => (
+              <button
+                className={activePosition === item ? "active" : ""}
+                key={item}
+                onClick={() => setActivePosition(item)}
+                type="button"
+              >
+                {item}
+              </button>
+            ))}
+          </div>
           <div className="table-wrap ranking-table-wrap">
             <table className="ranking-table">
-              <thead><tr><th>Rank</th><th>Player</th><th>Tier</th><th>ADP</th><th>Personal note</th></tr></thead>
+              <thead><tr><th>{activePosition} rank</th><th>Player</th><th>Tier</th><th>Risk</th><th>Upside</th><th>Market ADP</th><th>Personal note</th></tr></thead>
               <tbody>
                 {visiblePlayers.map((player) => (
                   <tr key={player.id}>
-                    <td><input className="number-editor rank-editor" type="number" min="1" value={player.userRank} aria-label={`${player.name} rank`} onChange={(event) => updatePlayer(player.id, { userRank: Math.max(1, Number(event.target.value)) })} /></td>
+                    <td><input className="number-editor rank-editor" type="number" min="1" value={getPositionRank(player, players, activePosition)} aria-label={`${player.name} ${activePosition} rank`} onChange={(event) => updatePositionRanking(player, "rank", Number(event.target.value))} /></td>
                     <td><div className="editable-player"><span className={`position ${player.positions[0].toLowerCase()}`}>{player.positions[0]}</span><span><strong>{player.name}</strong><small>{player.nflTeam} · Bye {player.byeWeek}</small></span></div></td>
-                    <td><input className="number-editor" type="number" min="1" value={player.tier} aria-label={`${player.name} tier`} onChange={(event) => updatePlayer(player.id, { tier: Math.max(1, Number(event.target.value)) })} /></td>
+                    <td><input className="number-editor" type="number" min="1" value={getPositionTier(player, activePosition)} aria-label={`${player.name} ${activePosition} tier`} onChange={(event) => updatePositionRanking(player, "tier", Number(event.target.value))} /></td>
+                    <td>{player.risk === undefined ? "—" : (player.risk * 10).toFixed(1)}</td>
+                    <td>{player.upside === undefined ? "—" : (player.upside * 10).toFixed(1)}</td>
                     <td><input className="number-editor adp-editor" type="number" min="1" step="0.1" value={player.adp} aria-label={`${player.name} ADP`} onChange={(event) => updatePlayer(player.id, { adp: Math.max(1, Number(event.target.value)) })} /></td>
                     <td><input className="note-editor" value={player.notes ?? ""} aria-label={`${player.name} note`} placeholder="Add your take…" onChange={(event) => updatePlayer(player.id, { notes: event.target.value })} /></td>
                   </tr>

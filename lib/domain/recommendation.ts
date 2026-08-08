@@ -7,6 +7,13 @@ import {
   calculateFantasyPoints,
   estimateDynamicReplacementBaselines,
 } from "./scoring";
+import {
+  getPositionRank,
+  getPositionRankValue,
+  getPositionTier,
+  getMarketAdp,
+  primaryPosition,
+} from "./rankings";
 import type {
   DraftPick,
   DraftTeam,
@@ -42,6 +49,7 @@ interface CandidateAnalysis {
   availabilityUrgency: number;
   opponentDemand: number;
   recentPositionRun: number;
+  upsideValue: number;
   riskPenalty: number;
   baseTotal: number;
 }
@@ -78,6 +86,12 @@ function riskMultiplier(tolerance: RiskTolerance): number {
   if (tolerance === "safe") return 8;
   if (tolerance === "upside") return 2.5;
   return 5;
+}
+
+function upsideMultiplier(tolerance: RiskTolerance): number {
+  if (tolerance === "safe") return 1.5;
+  if (tolerance === "upside") return 5;
+  return 3;
 }
 
 function buildOpponentTurnContexts(input: {
@@ -224,7 +238,6 @@ export function recommendPlayers({
   if (available.length === 0) return [];
 
   const baselines = estimateDynamicReplacementBaselines(players, league, picks);
-  const maximumRank = Math.max(...players.map((player) => player.userRank), 1);
   const filledBefore = assignedStarterCount(userRoster, league.rosterSlots);
   const nextUserPick = currentOverall + picksUntilNextTurn;
   const spread = Math.max(4, league.teamCount / 2);
@@ -244,42 +257,75 @@ export function recommendPlayers({
     );
     const replacementValue = projectedPoints - replacementBaseline;
     const replacementContribution = clamp(replacementValue / 6, -8, 22);
-    const personalRankValue =
-      ((maximumRank - player.userRank + 1) / maximumRank) * 10;
+    const rankingPosition = primaryPosition(player);
+    const personalRankValue = getPositionRankValue(
+      player,
+      players,
+      rankingPosition,
+    );
     const filledAfter = assignedStarterCount(
       [...userRoster, player],
       league.rosterSlots,
     );
+    const dedicatedSlots = league.rosterSlots.filter(
+      (slot) =>
+        slot.eligiblePositions.length === 1 &&
+        slot.eligiblePositions[0] === rankingPosition,
+    ).length;
+    const rosteredAtPosition = userRoster.filter((teammate) =>
+      teammate.positions.includes(rankingPosition),
+    ).length;
+    const repeatedPositionNeed = Math.max(
+      0,
+      dedicatedSlots - rosteredAtPosition - 1,
+    );
     const rosterFit =
       filledAfter > filledBefore
-        ? 7
+        ? 7 + repeatedPositionNeed * 3
         : userRoster.length < league.rosterSlots.length
           ? 1.2
           : 0.4;
     const samePosition = available
       .filter(
         (candidate) =>
-          candidate.id !== player.id && overlapsPosition(player, candidate),
+          candidate.id !== player.id &&
+          candidate.positions.includes(rankingPosition),
       )
       .map((candidate) => ({
         player: candidate,
         points: calculateFantasyPoints(candidate, league.scoringRules),
       }))
-      .sort((a, b) => b.points - a.points);
-    const nextBest = samePosition.find((candidate) => candidate.points <= projectedPoints);
+      .sort(
+        (a, b) =>
+          getPositionRank(a.player, players, rankingPosition) -
+          getPositionRank(b.player, players, rankingPosition),
+      );
+    const playerPositionRank = getPositionRank(player, players, rankingPosition);
+    const nextBest = samePosition.find(
+      (candidate) =>
+        getPositionRank(candidate.player, players, rankingPosition) >
+        playerPositionRank,
+    );
     const pointDrop = projectedPoints - (nextBest?.points ?? replacementBaseline);
-    const tierDrop = Math.max(0, (nextBest?.player.tier ?? player.tier) - player.tier);
+    const playerTier = getPositionTier(player, rankingPosition);
+    const tierDrop = Math.max(
+      0,
+      (nextBest
+        ? getPositionTier(nextBest.player, rankingPosition)
+        : playerTier) - playerTier,
+    );
     const tierScarcity = clamp(pointDrop / 3 + tierDrop * 1.25, 0, 8);
     const run = recentPositionRun(player, picks, players, league.teamCount);
     const needScore = opponentNeedScore(player, opponentContexts, league);
     const opponentDemand = clamp(needScore * 0.72 + run * 0.45, 0, 6);
-    const adjustedAdp = player.adp - opponentDemand * 1.4;
+    const adjustedAdp = getMarketAdp(player, league.teamCount) - opponentDemand * 1.4;
     const returnProbability = clamp(
       1 / (1 + Math.exp((nextUserPick - adjustedAdp) / spread)),
       0.02,
       0.98,
     );
     const availabilityUrgency = (1 - returnProbability) * 7;
+    const upsideValue = (player.upside ?? 0.5) * upsideMultiplier(riskTolerance);
     const riskPenalty = player.risk * riskMultiplier(riskTolerance);
     const baseTotal =
       replacementContribution +
@@ -288,7 +334,8 @@ export function recommendPlayers({
       tierScarcity +
       availabilityUrgency +
       opponentDemand -
-      riskPenalty;
+      riskPenalty +
+      upsideValue;
 
     return {
       player,
@@ -301,6 +348,7 @@ export function recommendPlayers({
       availabilityUrgency,
       opponentDemand,
       recentPositionRun: run,
+      upsideValue,
       riskPenalty,
       baseTotal,
     };
@@ -347,6 +395,7 @@ export function recommendPlayers({
           availabilityUrgency: round(candidate.availabilityUrgency),
           opponentDemand: round(candidate.opponentDemand),
           opportunityCost: round(opportunityCost),
+          upsideValue: round(candidate.upsideValue),
           riskPenalty: round(candidate.riskPenalty),
           total: round(total),
         },
@@ -362,6 +411,7 @@ export function recommendPlayers({
           opponentNeedScore: round(candidate.opponentDemand),
         },
         explanation: [
+          `${rankingPositionLabel(candidate.player, players)} on your position-based board`,
           `${round(candidate.replacementValue)} league points above the live ${candidate.player.positions[0]} replacement line`,
           `${Math.round(wait.simulatedReturnProbability * 100)}% chance to reach pick ${nextUserPick} across ${Math.max(32, Math.round(simulationCount))} wait scenarios`,
           pressure,
@@ -372,7 +422,12 @@ export function recommendPlayers({
     .sort(
       (a, b) =>
         b.breakdown.total - a.breakdown.total ||
-        a.player.userRank - b.player.userRank,
+        getPositionRank(a.player, players) - getPositionRank(b.player, players),
     )
     .slice(0, limit);
+}
+
+function rankingPositionLabel(player: Player, players: Player[]): string {
+  const position = primaryPosition(player);
+  return `${position}${getPositionRank(player, players, position)} in tier ${getPositionTier(player, position)}`;
 }
