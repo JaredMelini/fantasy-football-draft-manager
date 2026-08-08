@@ -1,0 +1,42 @@
+# Fantasy Football Draft Manager
+
+Fantasy Football Draft Manager is a personal, non-commercial web application planned to support informed drafting in Yahoo Fantasy Football leagues.
+
+> **Project status:** Planning and API-access review. The application has not been implemented or released.
+
+## Purpose
+
+The application will use league-specific settings and live draft state to produce transparent, data-driven draft recommendations. Recommendations will be advisory only; the application will not make selections or modify Yahoo rosters.
+
+## Planned features
+
+- Import league size, roster positions, scoring categories, scoring modifiers, teams, rosters, and documented draft results through the Yahoo Fantasy Sports API.
+- Support user-supplied player rankings through CSV or spreadsheet imports.
+- Allow rankings, tiers, preferences, and player notes to be edited manually.
+- Recalculate player value for the league's exact scoring and roster configuration.
+- Track drafted players and each team's roster during a draft when supported by the Yahoo API.
+- Provide manual draft tracking and an internal mock-draft simulator as fallbacks.
+- Explain recommendations using value over replacement, positional scarcity, roster construction, market availability, and simulation results.
+
+## Yahoo Fantasy Sports API use
+
+The project is requesting read-only Yahoo Fantasy Sports API access. After the account owner authorizes access with OAuth 2.0, the application intends to retrieve only the fantasy data needed for that user's draft assistant, including:
+
+- League metadata and settings
+- Team count and roster configuration
+- Scoring categories and modifiers
+- Teams, eligible players, and rosters
+- Documented league draft results
+
+The application will not submit draft picks, change rosters, scrape Yahoo web pages, or redistribute Yahoo data. Mock drafts will use supported API capabilities when available; otherwise, picks will be entered manually.
+
+## Data and privacy approach
+
+- Yahoo credentials and tokens will not be exposed to the browser or committed to this repository.
+- Yahoo-derived data will be minimized, secured, and displayed only to the authorized account owner.
+- API refresh guidance, rate limits, attribution requirements, and applicable retention requirements will be followed.
+- Third-party rankings or projections will be user-supplied or obtained under an appropriate license.
+
+## Availability
+
+This repository currently documents the proposed application while Yahoo API access and technical feasibility are evaluated. There is no public application or app-store listing at this time.
