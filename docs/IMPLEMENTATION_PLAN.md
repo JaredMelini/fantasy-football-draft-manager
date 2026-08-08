@@ -308,7 +308,7 @@ If live results are delayed, automatic mode will show its age and manual capture
 - Rankings Studio and saved overrides
 - Projection coverage reporting
 
-### M2 — Draft state and internal mocks
+### M2 — Draft state and internal mocks (complete)
 
 - Event-sourced draft session
 - Full manual draft workflow
@@ -360,3 +360,9 @@ If live results are delayed, automatic mode will show its age and manual capture
 - [x] Local CSV, TSV, and XLSX rankings import with column mapping and match review.
 - [x] Editable personal ranks, tiers, ADP values, and player notes.
 - [x] M1 import, audit, type, domain, and rendered-output verification.
+- [x] Append-only draft event model with deterministic replay, idempotent merge, and undo history.
+- [x] Complete manual draft workflow with search, position filters, roster-slot assignment, and correction controls.
+- [x] Seeded opponent simulator with balanced, best-available, and needs-first presets.
+- [x] Mock Lab with full-draft automation, replay slider, team boards, and decision evaluation.
+- [x] Expanded 70-player demo pool for complete ten-team starter mocks.
+- [x] M2 event, simulator, roster, evaluation, type, lint, and rendered-output verification.

@@ -431,6 +431,23 @@ a:focus-visible {
   color: #fff;
 }
 
+.pick-clock.complete {
+  background: #bfeee0;
+}
+
+.draft-progress {
+  background: #244144;
+  height: 4px;
+  overflow: hidden;
+}
+
+.draft-progress span {
+  background: var(--lime);
+  display: block;
+  height: 100%;
+  transition: width 180ms ease;
+}
+
 .ghost-button {
   background: transparent;
   color: #acbdbc;
@@ -493,6 +510,44 @@ a:focus-visible {
 
 .board-heading {
   padding: 22px 22px 14px;
+}
+
+.simulation-actions {
+  display: flex;
+  gap: 7px;
+}
+
+.board-filters {
+  align-items: center;
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(180px, 1fr) 130px auto;
+  padding: 11px 14px;
+}
+
+.board-filters input,
+.board-filters select {
+  background: #fff;
+  font-size: 10px;
+  padding: 8px 9px;
+}
+
+.board-filters > span {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.draft-player-table {
+  max-height: 660px;
+  overflow: auto;
+}
+
+.draft-player-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 
 .table-wrap {
@@ -590,6 +645,17 @@ tr.top-player td {
   display: grid;
   min-height: 46px;
   padding: 7px 9px;
+}
+
+.bench-player {
+  background: #f7f8f6;
+}
+
+.empty-state-copy {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.55;
+  margin: 20px 0;
 }
 
 .roster-player {
@@ -1043,6 +1109,313 @@ input {
   grid-template-columns: minmax(0, 1fr) 230px;
 }
 
+.mock-hero {
+  align-items: stretch;
+  grid-template-columns: minmax(0, 1fr) 430px;
+}
+
+.mock-controls {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1fr 1fr;
+  padding: 18px;
+}
+
+.mock-controls label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mock-controls label span {
+  color: var(--muted);
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.mock-controls input,
+.mock-controls select {
+  background: #fff;
+  font-size: 10px;
+  padding: 9px;
+  width: 100%;
+}
+
+.mock-control-actions {
+  display: grid;
+  gap: 8px;
+  grid-column: 1 / -1;
+  grid-template-columns: 1fr 1fr;
+}
+
+.compact-button {
+  padding: 9px 13px;
+  width: auto;
+}
+
+.mock-summary-grid {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+}
+
+.evaluation-card {
+  align-items: stretch;
+  display: grid;
+  grid-template-columns: 145px 1fr;
+  overflow: hidden;
+}
+
+.draft-grade {
+  align-items: center;
+  background: var(--navy);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 150px;
+  padding: 20px;
+}
+
+.draft-grade span,
+.draft-grade small {
+  color: #aebfbe;
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
+.draft-grade strong {
+  color: var(--lime);
+  font-size: 50px;
+  letter-spacing: -0.06em;
+  line-height: 1;
+  margin: 7px 0 3px;
+}
+
+.evaluation-metrics {
+  display: grid;
+  gap: 1px;
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.evaluation-metrics div {
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 16px;
+}
+
+.evaluation-metrics span {
+  color: var(--muted);
+  font-size: 8px;
+  text-transform: uppercase;
+}
+
+.evaluation-metrics strong {
+  font-size: 19px;
+  margin-top: 5px;
+}
+
+.replay-card {
+  padding: 22px;
+}
+
+.replay-card h2,
+.mock-section-heading h2,
+.event-timeline h2 {
+  font-size: 20px;
+  margin: 5px 0 0;
+}
+
+.replay-slider {
+  accent-color: var(--teal);
+  border: 0;
+  margin: 25px 0 16px;
+  padding: 0;
+  width: 100%;
+}
+
+.replay-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.replay-meta span {
+  background: #f1f4f0;
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 8px;
+  font-weight: 800;
+  padding: 6px 8px;
+}
+
+.mock-workspace {
+  align-items: start;
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  margin-top: 18px;
+}
+
+.mock-board,
+.event-timeline {
+  padding: 22px;
+}
+
+.team-board-grid {
+  display: grid;
+  gap: 9px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin-top: 20px;
+}
+
+.team-board-card {
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.team-board-card.user-team {
+  border-color: var(--teal);
+  box-shadow: inset 0 0 0 1px var(--teal);
+}
+
+.team-board-card header {
+  align-items: center;
+  background: #f5f7f4;
+  display: grid;
+  gap: 6px;
+  grid-template-columns: auto 1fr auto;
+  padding: 9px;
+}
+
+.team-board-card.user-team header {
+  background: var(--teal-soft);
+}
+
+.team-board-card header > span {
+  align-items: center;
+  background: var(--navy);
+  border-radius: 6px;
+  color: var(--lime);
+  display: flex;
+  font-size: 8px;
+  font-weight: 900;
+  height: 20px;
+  justify-content: center;
+  width: 20px;
+}
+
+.team-board-card header strong {
+  font-size: 9px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.team-board-card header small {
+  color: var(--muted);
+  font-size: 7px;
+}
+
+.team-picks {
+  display: flex;
+  flex-direction: column;
+  min-height: 112px;
+  padding: 7px;
+}
+
+.team-picks > span {
+  align-items: center;
+  border-bottom: 1px solid #edf0ed;
+  display: grid;
+  font-size: 8px;
+  gap: 5px;
+  grid-template-columns: 20px 1fr;
+  overflow: hidden;
+  padding: 5px 1px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.team-picks b {
+  color: var(--teal);
+  font-size: 7px;
+}
+
+.team-picks em {
+  color: #8b9898;
+  font-size: 8px;
+  margin: auto;
+}
+
+.event-timeline {
+  position: sticky;
+  top: 94px;
+}
+
+.timeline-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 18px;
+  max-height: 590px;
+  overflow: auto;
+}
+
+.timeline-event {
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  display: grid;
+  gap: 9px;
+  grid-template-columns: 24px 1fr auto;
+  padding: 8px;
+}
+
+.timeline-event.user-pick {
+  background: #f8ffea;
+  border-color: #d7e99d;
+}
+
+.timeline-event > span {
+  color: var(--teal);
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.timeline-event div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.timeline-event strong {
+  font-size: 9px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timeline-event small {
+  color: var(--muted);
+  font-size: 7px;
+  margin-top: 3px;
+}
+
+.timeline-event > b {
+  background: #edf1ee;
+  border-radius: 5px;
+  color: var(--teal);
+  font-size: 7px;
+  padding: 5px;
+}
+
 .audit-score-card {
   background: var(--navy);
   border-radius: 18px;
@@ -1239,6 +1612,18 @@ input {
   .roster-count-grid {
     grid-template-columns: repeat(2, 1fr);
   }
+
+  .mock-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .event-timeline {
+    position: static;
+  }
+
+  .team-board-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 860px) {
@@ -1299,6 +1684,7 @@ input {
 
   .tool-hero,
   .settings-hero,
+  .mock-hero,
   .rankings-layout,
   .settings-layout {
     grid-template-columns: 1fr;
@@ -1319,6 +1705,14 @@ input {
 
   .ranking-table-wrap {
     max-height: none;
+  }
+
+  .mock-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .team-board-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -1362,6 +1756,21 @@ input {
   }
 
   .mapping-row {
+    grid-template-columns: 1fr;
+  }
+
+  .board-filters,
+  .mock-controls,
+  .mock-control-actions,
+  .evaluation-card {
+    grid-template-columns: 1fr;
+  }
+
+  .draft-grade {
+    min-height: 120px;
+  }
+
+  .team-board-grid {
     grid-template-columns: 1fr;
   }
 }

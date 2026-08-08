@@ -62,7 +62,7 @@ function player(
   };
 }
 
-export const demoPlayers: Player[] = [
+const featuredPlayers: Player[] = [
   player("bijan", "Bijan Robinson", "ATL", "RB", 5, 1.3, 1, 1, 0.18, { rushingYards: 1320, rushingTouchdowns: 12, receptions: 64, receivingYards: 520, receivingTouchdowns: 4, fumblesLost: 2 }),
   player("gibbs", "Jahmyr Gibbs", "DET", "RB", 8, 2.4, 2, 1, 0.16, { rushingYards: 1210, rushingTouchdowns: 12, receptions: 68, receivingYards: 560, receivingTouchdowns: 5, fumblesLost: 1 }),
   player("chase", "Ja'Marr Chase", "CIN", "WR", 10, 3.1, 3, 1, 0.14, { receptions: 112, receivingYards: 1510, receivingTouchdowns: 12, rushingYards: 20, fumblesLost: 1 }),
@@ -87,6 +87,75 @@ export const demoPlayers: Player[] = [
   player("wilson", "Garrett Wilson", "NYJ", "WR", 9, 25.8, 22, 4, 0.18, { receptions: 96, receivingYards: 1210, receivingTouchdowns: 7, fumblesLost: 1 }),
   player("harrison", "Marvin Harrison Jr.", "ARI", "WR", 8, 31.1, 23, 4, 0.2, { receptions: 87, receivingYards: 1180, receivingTouchdowns: 8, fumblesLost: 1 }),
   player("daniels", "Jayden Daniels", "WAS", "QB", 12, 33.4, 24, 4, 0.16, { passingYards: 3740, passingTouchdowns: 25, interceptions: 9, rushingYards: 720, rushingTouchdowns: 7, fumblesLost: 2 }),
+];
+
+function buildDepthPlayers(): Player[] {
+  const teamCodes = ["BUF", "MIA", "NYJ", "BAL", "CIN", "CLE", "HOU", "IND", "JAX", "KC", "LV", "LAC", "DAL", "PHI", "CHI", "DET", "GB", "MIN", "ATL", "CAR", "LAR", "SEA", "ARI"];
+  const positions: Array<{ position: Player["positions"][number]; count: number }> = [
+    { position: "QB", count: 6 },
+    { position: "RB", count: 18 },
+    { position: "WR", count: 15 },
+    { position: "TE", count: 7 },
+  ];
+  let overallIndex = 0;
+
+  return positions.flatMap(({ position, count }) =>
+    Array.from({ length: count }, (_, positionIndex) => {
+      const rank = featuredPlayers.length + overallIndex + 1;
+      const decline = overallIndex;
+      const projectedStats: ProjectedStats =
+        position === "QB"
+          ? {
+              passingYards: 3500 - decline * 14,
+              passingTouchdowns: 23 - Math.floor(positionIndex / 3),
+              interceptions: 11,
+              rushingYards: 220 + positionIndex * 28,
+              rushingTouchdowns: 2 + (positionIndex % 3),
+              fumblesLost: 2,
+            }
+          : position === "RB"
+            ? {
+                rushingYards: 900 - positionIndex * 18,
+                rushingTouchdowns: 7 - Math.floor(positionIndex / 7),
+                receptions: 38 + (positionIndex % 5) * 4,
+                receivingYards: 280 + (positionIndex % 4) * 25,
+                receivingTouchdowns: 2,
+                fumblesLost: 2,
+              }
+            : position === "WR"
+              ? {
+                  receptions: 76 - Math.floor(positionIndex / 3),
+                  receivingYards: 980 - positionIndex * 20,
+                  receivingTouchdowns: 7 - Math.floor(positionIndex / 6),
+                  fumblesLost: 1,
+                }
+              : {
+                  receptions: 62 - positionIndex * 2,
+                  receivingYards: 720 - positionIndex * 24,
+                  receivingTouchdowns: 6 - Math.floor(positionIndex / 4),
+                  fumblesLost: 1,
+                };
+      const result = player(
+        `demo-${position.toLowerCase()}-${positionIndex + 1}`,
+        `Demo ${position} ${positionIndex + 1}`,
+        teamCodes[overallIndex % teamCodes.length],
+        position,
+        5 + (overallIndex % 10),
+        rank + (overallIndex % 4) * 0.2,
+        rank,
+        3 + Math.floor(overallIndex / 12),
+        0.16 + (overallIndex % 5) * 0.03,
+        projectedStats,
+      );
+      overallIndex += 1;
+      return result;
+    }),
+  );
+}
+
+export const demoPlayers: Player[] = [
+  ...featuredPlayers,
+  ...buildDepthPlayers(),
 ];
 
 export function buildDemoTeams(teamCount: number): DraftTeam[] {

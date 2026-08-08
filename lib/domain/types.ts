@@ -68,6 +68,29 @@ export interface DraftPick {
   playerId: string;
 }
 
+export type DraftEventSource = "manual" | "simulated" | "provider";
+
+export interface DraftPickEvent {
+  id: string;
+  sequence: number;
+  type: "pick_made";
+  source: DraftEventSource;
+  pick: DraftPick;
+  recommendedPlayerId?: string;
+}
+
+export interface DraftUndoEvent {
+  id: string;
+  sequence: number;
+  type: "pick_undone";
+  source: DraftEventSource;
+  targetEventId: string;
+}
+
+export type DraftEvent = DraftPickEvent | DraftUndoEvent;
+
+export type OpponentStrategy = "balanced" | "best-available" | "needs-first";
+
 export interface RecommendationBreakdown {
   projectedPoints: number;
   replacementValue: number;

@@ -2,7 +2,7 @@
 
 Fantasy Football Draft Manager is a personal, non-commercial web application for league-specific Yahoo Fantasy Football draft recommendations.
 
-> **Project status:** Settings and rankings milestone complete; Yahoo API-access review pending.
+> **Project status:** Manual drafts and internal mock simulations complete; Yahoo API-access review pending.
 
 ## Purpose
 
@@ -17,6 +17,8 @@ The application will use league-specific settings and live draft state to produc
 - Track drafted players and each team's roster during a draft when supported by the Yahoo API.
 - Provide manual draft tracking and an internal mock-draft simulator as fallbacks.
 - Explain recommendations using value over replacement, positional scarcity, roster construction, market availability, and simulation results.
+- Record picks in an append-only event log with undo history and exact replay.
+- Run deterministic full mocks with configurable opponent strategies and post-draft evaluation.
 
 ## Yahoo Fantasy Sports API use
 
@@ -39,7 +41,7 @@ The application will not submit draft picks, change rosters, scrape Yahoo web pa
 
 ## Availability
 
-The foundation, league-settings audit, and local rankings workflow are implemented. Yahoo connectivity will be added behind a provider adapter after API access and live-draft behavior are verified.
+The foundation, league-settings audit, rankings workflow, event-sourced manual draft, and internal Mock Lab are implemented. Yahoo connectivity will be added behind a provider adapter after API access and live-draft behavior are verified.
 
 ## Project plan
 

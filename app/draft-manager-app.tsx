@@ -3,11 +3,22 @@
 import { useState } from "react";
 import { DraftRoom } from "./draft-room";
 import { LeagueSettings } from "./league-settings";
+import { MockLab } from "./mock-lab";
 import { RankingsStudio } from "./rankings-studio";
-import { demoLeague, demoPlayers } from "@/lib/sample-data";
-import type { LeagueSettings as LeagueSettingsModel, Player } from "@/lib/domain/types";
+import { eventsFromPicks } from "@/lib/domain/draft-session";
+import {
+  buildInitialDemoPicks,
+  demoLeague,
+  demoPlayers,
+} from "@/lib/sample-data";
+import type {
+  DraftEvent,
+  LeagueSettings as LeagueSettingsModel,
+  OpponentStrategy,
+  Player,
+} from "@/lib/domain/types";
 
-type AppView = "draft" | "rankings" | "league";
+type AppView = "draft" | "mock" | "rankings" | "league";
 
 function freshLeague(): LeagueSettingsModel {
   return {
@@ -29,16 +40,38 @@ function freshPlayers(): Player[] {
   }));
 }
 
+function freshDraftEvents(league: LeagueSettingsModel): DraftEvent[] {
+  return eventsFromPicks(buildInitialDemoPicks(league.teamCount), "provider");
+}
+
 export function DraftManagerApp() {
   const [view, setView] = useState<AppView>("draft");
   const [league, setLeague] = useState<LeagueSettingsModel>(freshLeague);
   const [players, setPlayers] = useState<Player[]>(freshPlayers);
+  const [events, setEvents] = useState<DraftEvent[]>(() =>
+    freshDraftEvents(demoLeague),
+  );
+  const [simulationSeed, setSimulationSeed] = useState("sunday-night-2026");
+  const [opponentStrategy, setOpponentStrategy] =
+    useState<OpponentStrategy>("balanced");
 
   const navItems: Array<{ id: AppView; label: string }> = [
     { id: "draft", label: "Draft room" },
+    { id: "mock", label: "Mock Lab" },
     { id: "rankings", label: "Rankings" },
     { id: "league", label: "League setup" },
   ];
+
+  function resetDraft(nextLeague = league) {
+    setEvents(freshDraftEvents(nextLeague));
+  }
+
+  function updateLeague(nextLeague: LeagueSettingsModel) {
+    const currentShape = `${league.teamCount}:${league.draftType}:${league.rosterSlots.map((slot) => `${slot.label}-${slot.eligiblePositions.join("/")}`).join("|")}`;
+    const nextShape = `${nextLeague.teamCount}:${nextLeague.draftType}:${nextLeague.rosterSlots.map((slot) => `${slot.label}-${slot.eligiblePositions.join("/")}`).join("|")}`;
+    setLeague(nextLeague);
+    if (currentShape !== nextShape) resetDraft(nextLeague);
+  }
 
   return (
     <main className="app-shell">
@@ -75,6 +108,25 @@ export function DraftManagerApp() {
           key={`${league.teamCount}-${league.draftType}`}
           league={league}
           players={players}
+          events={events}
+          seed={simulationSeed}
+          strategy={opponentStrategy}
+          onEventsChange={setEvents}
+          onResetDraft={() => resetDraft()}
+        />
+      )}
+      {view === "mock" && (
+        <MockLab
+          league={league}
+          players={players}
+          events={events}
+          seed={simulationSeed}
+          strategy={opponentStrategy}
+          onEventsChange={setEvents}
+          onSeedChange={setSimulationSeed}
+          onStrategyChange={setOpponentStrategy}
+          onResetDraft={() => resetDraft()}
+          onOpenDraft={() => setView("draft")}
         />
       )}
       {view === "rankings" && (
@@ -88,8 +140,12 @@ export function DraftManagerApp() {
         <LeagueSettings
           league={league}
           players={players}
-          onLeagueChange={setLeague}
-          onReset={() => setLeague(freshLeague())}
+          onLeagueChange={updateLeague}
+          onReset={() => {
+            const restored = freshLeague();
+            setLeague(restored);
+            resetDraft(restored);
+          }}
         />
       )}
     </main>

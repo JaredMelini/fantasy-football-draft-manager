@@ -31,10 +31,11 @@ test("server-renders the fantasy football draft room", async () => {
   assert.match(html, /<title>Fantasy Football Draft Manager<\/title>/i);
   assert.match(html, /Sunday Night Strategists/);
   assert.match(html, /Draft room/);
+  assert.match(html, /Mock Lab/);
   assert.match(html, /Rankings/);
   assert.match(html, /League setup/);
   assert.match(html, /Best decision now/);
   assert.match(html, /Available players/);
-  assert.match(html, /Deterministic engine active/);
+  assert.match(html, /Draft event log active/);
   assert.doesNotMatch(html, /codex-preview|react-loading-skeleton|Starter Project/i);
 });
