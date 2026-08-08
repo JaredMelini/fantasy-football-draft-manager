@@ -354,4 +354,4 @@ If live results are delayed, automatic mode will show its age and manual capture
 - [x] M0 domain types, scoring, roster assignment, and baseline recommendations.
 - [x] Interactive manual draft demo with opponent simulation, undo, and reset.
 - [x] Domain tests and rendered-output build verification.
-- [x] First tested milestone prepared for commit and push on `codex/foundation`.
+- [x] First tested milestone committed and pushed on `codex/foundation`.
