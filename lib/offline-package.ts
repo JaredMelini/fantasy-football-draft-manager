@@ -1,15 +1,10 @@
-import { eventsFromPicks } from "./domain/draft-session";
 import type {
   DraftEvent,
   LeagueSettings,
   OpponentStrategy,
   Player,
 } from "./domain/types";
-import {
-  buildInitialDemoPicks,
-  demoLeague,
-  starterPlayers,
-} from "./sample-data";
+import { starterPlayers, yahooLeague } from "./sample-data";
 
 export const OFFLINE_PACKAGE_VERSION = 1;
 
@@ -47,12 +42,9 @@ export function createDefaultOfflinePackage(): OfflineDraftPackage {
   return {
     version: OFFLINE_PACKAGE_VERSION,
     exportedAt: new Date(0).toISOString(),
-    league: cloneLeague(demoLeague),
+    league: cloneLeague(yahooLeague),
     players: clonePlayers(starterPlayers),
-    events: eventsFromPicks(
-      buildInitialDemoPicks(demoLeague.teamCount),
-      "provider",
-    ),
+    events: [],
     simulationSeed: "sunday-night-2026",
     opponentStrategy: "balanced",
   };

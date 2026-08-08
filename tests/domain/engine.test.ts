@@ -16,6 +16,7 @@ import {
   demoPlayers,
   demoTeams,
   initialDemoPicks,
+  yahooLeague,
 } from "../../lib/sample-data";
 
 test("calculates exact full-PPR fantasy points from raw projections", () => {
@@ -25,6 +26,26 @@ test("calculates exact full-PPR fantasy points from raw projections", () => {
     findUncoveredScoringStats(demoPlayers, demoLeague.scoringRules),
     [],
   );
+});
+
+test("calculates Yahoo big-play and DST categories independently", () => {
+  const template = demoPlayers[0];
+  const player = {
+    ...template,
+    projectedStats: {
+      passingTouchdowns: 1,
+      passing40YardTouchdowns: 1,
+      fieldGoals50Plus: 1,
+      defenseSacks: 2,
+      defensePointsAllowed35Plus: 1,
+    },
+  };
+  const selectedStats = new Set(Object.keys(player.projectedStats));
+  const rules = yahooLeague.scoringRules.filter((rule) =>
+    selectedStats.has(rule.stat),
+  );
+
+  assert.equal(calculateFantasyPoints(player, rules), 11);
 });
 
 test("reverses team order in the second round of a snake draft", () => {

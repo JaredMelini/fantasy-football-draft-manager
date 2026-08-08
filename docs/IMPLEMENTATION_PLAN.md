@@ -409,3 +409,11 @@ Official references: [Yahoo Fantasy API documentation](https://sports.yahoo.com/
 - [x] Fantasy Footballers UDK workflow using the site's official per-position CSV exports with local multi-file parsing.
 - [x] Position tabs and independent QB, RB, WR, TE, K, and DST rank/tier editing.
 - [x] Decision Engine position-rank percentiles, position-local tier cliffs, UDK risk/upside signals, and realistic opponent roster limits.
+- [x] Authenticated read-only review of Yahoo league 595211 settings, roster configuration, draft configuration, keeper status, and positional limits.
+- [x] Editable `Trip` league fixture saved as the local default: eight teams, snake draft, 90-second clock, nine starters, six bench spots, and one IR spot.
+- [x] All 39 enabled Yahoo offense, kicking, and DST scoring modifiers represented in the scoring engine and settings editor.
+- [x] Existing local demo-league snapshots migrate to the Yahoo default without deleting imported player rankings.
+- [x] Draft length and simulations account for bench positions in addition to starters.
+- [x] Unknown randomized draft slot is shown as pending and can be entered in League Setup after Yahoo announces the order.
+- [ ] Add the actual user draft slot when Yahoo randomizes the order 30 minutes before the August 30 draft.
+- [ ] Add projections for bonus-play, return, kicker-distance, and DST points-allowed categories, or use a licensed source-projected total that already reflects these rules.

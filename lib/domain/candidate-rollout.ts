@@ -1,4 +1,4 @@
-import { teamForOverallPick } from "./draft";
+import { draftRosterSize, teamForOverallPick } from "./draft";
 import { assignRoster } from "./roster";
 import {
   calculateFantasyPoints,
@@ -106,7 +106,7 @@ function futureUserPicks(input: {
 }): number[] {
   const picks: number[] = [];
   const maximumOverall =
-    input.teams.length * Math.max(input.league.rosterSlots.length, 1);
+    input.teams.length * Math.max(draftRosterSize(input.league), 1);
   for (
     let overall = input.decisionOverall + 1;
     overall <= maximumOverall && picks.length < input.remainingSelections;
@@ -235,7 +235,7 @@ function summarizeCandidate(
   );
   const remainingSelections = Math.max(
     0,
-    input.league.rosterSlots.length - input.userRoster.length - 1,
+    draftRosterSize(input.league) - input.userRoster.length - 1,
   );
   const userPicks = futureUserPicks({
     teams: input.teams,

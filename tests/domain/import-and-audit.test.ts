@@ -10,7 +10,11 @@ import {
   rankingUpdateFromReview,
   tableFromRows,
 } from "../../lib/import/rankings";
-import { demoLeague, demoPlayers } from "../../lib/sample-data";
+import {
+  demoLeague,
+  demoPlayers,
+  yahooLeague,
+} from "../../lib/sample-data";
 
 test("parses quoted ranking CSV and imports matched player edits", () => {
   const table = parseDelimitedRankings(
@@ -133,8 +137,8 @@ test("imports UDK ranks and tiers as position-specific values", () => {
 test("audits modeled settings and flags unsupported projection coverage", () => {
   const baseline = auditLeagueSettings(demoLeague, demoPlayers);
   assert.deepEqual(auditSummary(baseline), {
-    modeled: 4,
-    warnings: 0,
+    modeled: 5,
+    warnings: 1,
     errors: 0,
   });
 
@@ -151,6 +155,39 @@ test("audits modeled settings and flags unsupported projection coverage", () => 
   assert.equal(
     withKickerRule.find((item) => item.id === "scoring")?.status,
     "warning",
+  );
+});
+
+test("stores the fixed Yahoo league scoring and roster settings", () => {
+  assert.equal(yahooLeague.id, "yahoo-595211");
+  assert.equal(yahooLeague.name, "Trip");
+  assert.equal(yahooLeague.teamCount, 8);
+  assert.equal(yahooLeague.draftType, "snake");
+  assert.equal(yahooLeague.draftPickSeconds, 90);
+  assert.equal(yahooLeague.userDraftSlot, undefined);
+  assert.equal(yahooLeague.rosterSlots.length, 9);
+  assert.equal(yahooLeague.benchSlots, 6);
+  assert.equal(yahooLeague.irSlots, 1);
+  assert.equal(yahooLeague.keeperLeague, false);
+  assert.deepEqual(yahooLeague.draftPositionLimits, {});
+  assert.equal(yahooLeague.scoringRules.length, 39);
+  assert.equal(
+    auditLeagueSettings(yahooLeague, demoPlayers).find(
+      (item) => item.id === "draft-slot",
+    )?.status,
+    "warning",
+  );
+  assert.equal(
+    yahooLeague.scoringRules.find(
+      (rule) => rule.stat === "passingTouchdowns",
+    )?.pointsPerUnit,
+    6,
+  );
+  assert.equal(
+    yahooLeague.scoringRules.find(
+      (rule) => rule.stat === "defensePointsAllowed35Plus",
+    )?.pointsPerUnit,
+    -4,
   );
 });
 

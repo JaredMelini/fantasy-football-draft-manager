@@ -4,14 +4,43 @@ export type ProjectionStat =
   | "passingYards"
   | "passingTouchdowns"
   | "interceptions"
+  | "passing40YardCompletions"
+  | "passing40YardTouchdowns"
   | "rushingYards"
   | "rushingTouchdowns"
+  | "rushing40YardRuns"
+  | "rushing40YardTouchdowns"
   | "receptions"
   | "receivingYards"
   | "receivingTouchdowns"
+  | "receiving40YardReceptions"
+  | "receiving40YardTouchdowns"
+  | "returnTouchdowns"
+  | "returnYards"
+  | "twoPointConversions"
   | "fumblesLost"
+  | "offensiveFumbleReturnTouchdowns"
   | "fieldGoalsMade"
+  | "fieldGoals0To19"
+  | "fieldGoals20To29"
+  | "fieldGoals30To39"
+  | "fieldGoals40To49"
+  | "fieldGoals50Plus"
   | "extraPointsMade"
+  | "defensePointsAllowed0"
+  | "defensePointsAllowed1To6"
+  | "defensePointsAllowed7To13"
+  | "defensePointsAllowed14To20"
+  | "defensePointsAllowed28To34"
+  | "defensePointsAllowed35Plus"
+  | "defenseSacks"
+  | "defenseInterceptions"
+  | "defenseFumbleRecoveries"
+  | "defenseTouchdowns"
+  | "defenseSafeties"
+  | "defenseBlockedKicks"
+  | "defenseReturnTouchdowns"
+  | "defenseExtraPointReturns"
   | "defensePoints";
 
 export type ProjectedStats = Partial<Record<ProjectionStat, number>>;
@@ -36,6 +65,18 @@ export interface LeagueSettings {
   scoringLabel: string;
   scoringRules: ScoringRule[];
   rosterSlots: RosterSlot[];
+  benchSlots?: number;
+  irSlots?: number;
+  fractionalPoints?: boolean;
+  negativePoints?: boolean;
+  providerLeagueId?: string;
+  draftPickSeconds?: number;
+  draftDateTime?: string;
+  draftTimeZone?: string;
+  draftOrderMode?: "randomize-later" | "randomized" | "custom";
+  userDraftSlot?: number;
+  keeperLeague?: boolean;
+  draftPositionLimits?: Partial<Record<PlayerPosition, number>>;
 }
 
 export interface Player {

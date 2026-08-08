@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import {
+  draftRosterSize,
   picksUntilTeamTurn,
   playerIdsForTeam,
   roundForOverallPick,
@@ -82,10 +83,13 @@ export function DraftRoom({
   const [captureText, setCaptureText] = useState("");
   const effectiveTeamCount = Math.max(1, Math.round(league.teamCount || 1));
   const teams = useMemo(
-    () => buildDemoTeams(effectiveTeamCount),
-    [effectiveTeamCount],
+    () => buildDemoTeams(effectiveTeamCount, league.userDraftSlot ?? 1),
+    [effectiveTeamCount, league.userDraftSlot],
   );
   const userTeam = teams.find((team) => team.isUser)!;
+  const draftSlotLabel = league.userDraftSlot
+    ? `Draft slot ${league.userDraftSlot}`
+    : "Draft order pending";
   const replayed = useMemo(() => replayDraftEvents(events), [events]);
   const picks = replayed.picks;
   const draftedIds = useMemo(
@@ -94,7 +98,7 @@ export function DraftRoom({
   );
   const maximumPicks = Math.min(
     players.filter((player) => !player.excluded).length,
-    effectiveTeamCount * league.rosterSlots.length,
+    effectiveTeamCount * draftRosterSize(league),
   );
   const draftComplete = picks.length >= maximumPicks;
   const currentOverall = picks.length + 1;
@@ -262,7 +266,7 @@ export function DraftRoom({
         <div>
           <p className="eyebrow">Event-sourced draft · manual companion</p>
           <h1>{league.name}</h1>
-          <p>{league.teamCount} teams · {league.scoringLabel} · Draft slot {userTeam.draftSlot}</p>
+          <p>{league.teamCount} teams · {league.scoringLabel} · {draftSlotLabel}</p>
         </div>
         <div className={`pick-clock ${draftComplete ? "complete" : ""}`} aria-live="polite">
           <span>{draftComplete ? "Draft complete" : "On the clock"}</span>
@@ -459,7 +463,7 @@ export function DraftRoom({
 
         <aside className="roster-panel panel">
           <div className="section-heading">
-            <div><p className="eyebrow">Draft slot {userTeam.draftSlot} · My team</p><h2>Roster build</h2></div>
+            <div><p className="eyebrow">{draftSlotLabel} · My team</p><h2>Roster build</h2></div>
             <span className="roster-count">{rosterAssignment.starters.length}/{league.rosterSlots.length}</span>
           </div>
           <div className="roster-list">

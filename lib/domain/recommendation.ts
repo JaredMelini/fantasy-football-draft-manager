@@ -1,5 +1,6 @@
 import {
   assignedStarterCount,
+  draftRosterSize,
   playerIdsForTeam,
   teamForOverallPick,
 } from "./draft";
@@ -145,7 +146,7 @@ function opponentNeedScore(
       league.rosterSlots,
     );
     if (filledAfter > context.filledStarters) return total + 1;
-    if (context.roster.length < league.rosterSlots.length) return total + 0.2;
+    if (context.roster.length < draftRosterSize(league)) return total + 0.2;
     return total;
   }, 0);
   return clamp((needTurns / contexts.length) * 6, 0, 6);
@@ -282,7 +283,7 @@ export function recommendPlayers({
     const rosterFit =
       filledAfter > filledBefore
         ? 7 + repeatedPositionNeed * 3
-        : userRoster.length < league.rosterSlots.length
+        : userRoster.length < draftRosterSize(league)
           ? 1.2
           : 0.4;
     const samePosition = available

@@ -113,13 +113,20 @@ export function LeagueSettings({
           <section className="panel settings-card">
             <div className="section-heading">
               <div><p className="eyebrow">League basics</p><h2>Draft environment</h2></div>
-              <Button variant="outline" size="sm" onClick={onReset}>Restore demo settings</Button>
+              <Button variant="outline" size="sm" onClick={onReset}>Restore Yahoo settings</Button>
             </div>
             <div className="form-grid">
               <label><span>League name</span><Input value={league.name} onChange={(event) => onLeagueChange({ ...league, name: event.target.value })} /></label>
               <label><span>Team count</span><Input type="number" min="8" max="20" value={league.teamCount} onChange={(event) => onLeagueChange({ ...league, teamCount: Number(event.target.value) })} /></label>
               <label><span>Draft type</span><select value={league.draftType} onChange={(event) => onLeagueChange({ ...league, draftType: event.target.value as LeagueSettingsModel["draftType"] })}><option value="snake">Snake</option><option value="linear">Linear</option><option value="salary-cap">Salary cap</option></select></label>
               <label><span>Scoring label</span><Input value={league.scoringLabel} onChange={(event) => onLeagueChange({ ...league, scoringLabel: event.target.value })} /></label>
+              <label><span>Pick time (seconds)</span><Input type="number" min="15" step="15" value={league.draftPickSeconds ?? 90} onChange={(event) => onLeagueChange({ ...league, draftPickSeconds: Number(event.target.value) })} /></label>
+              <label><span>Draft date and time</span><Input type="datetime-local" value={league.draftDateTime ?? ""} onChange={(event) => onLeagueChange({ ...league, draftDateTime: event.target.value })} /></label>
+              <label><span>Draft order</span><select value={league.draftOrderMode ?? "randomize-later"} onChange={(event) => onLeagueChange({ ...league, draftOrderMode: event.target.value as NonNullable<LeagueSettingsModel["draftOrderMode"]> })}><option value="randomize-later">Randomize 30 minutes before</option><option value="randomized">Already randomized</option><option value="custom">Custom</option></select></label>
+              <label><span>My draft slot</span><Input type="number" min="1" max={league.teamCount} placeholder="Pending" value={league.userDraftSlot ?? ""} onChange={(event) => { const value = event.target.value; onLeagueChange({ ...league, userDraftSlot: value === "" ? undefined : Math.max(1, Math.min(league.teamCount, Number(value))) }); }} /></label>
+              <label><span>Fractional points</span><select value={league.fractionalPoints === false ? "no" : "yes"} onChange={(event) => onLeagueChange({ ...league, fractionalPoints: event.target.value === "yes" })}><option value="yes">Yes</option><option value="no">No</option></select></label>
+              <label><span>Negative points</span><select value={league.negativePoints === false ? "no" : "yes"} onChange={(event) => onLeagueChange({ ...league, negativePoints: event.target.value === "yes" })}><option value="yes">Yes</option><option value="no">No</option></select></label>
+              <label><span>Keeper league</span><select value={league.keeperLeague ? "yes" : "no"} onChange={(event) => onLeagueChange({ ...league, keeperLeague: event.target.value === "yes" })}><option value="no">No</option><option value="yes">Yes</option></select></label>
             </div>
           </section>
 
@@ -138,6 +145,14 @@ export function LeagueSettings({
                   </label>
                 );
               })}
+              <label>
+                <span>Bench<small>Inactive roster</small></span>
+                <Input type="number" min="0" max="20" value={league.benchSlots ?? 0} aria-label="Bench roster count" onChange={(event) => onLeagueChange({ ...league, benchSlots: Number(event.target.value) })} />
+              </label>
+              <label>
+                <span>IR<small>Injured reserve</small></span>
+                <Input type="number" min="0" max="10" value={league.irSlots ?? 0} aria-label="IR roster count" onChange={(event) => onLeagueChange({ ...league, irSlots: Number(event.target.value) })} />
+              </label>
             </div>
           </section>
 
@@ -149,7 +164,7 @@ export function LeagueSettings({
             <div className="scoring-rule-list">
               {league.scoringRules.map((rule) => (
                 <label key={rule.stat}>
-                  <span><strong>{rule.label}</strong><small>{statDescriptions[rule.stat] ?? rule.stat}</small></span>
+                  <span><strong>{rule.label}</strong><small>{statDescriptions[rule.stat] ?? "per recorded occurrence"}</small></span>
                   <Input type="number" step="0.01" value={rule.pointsPerUnit} aria-label={`${rule.label} points`} onChange={(event) => updateScoringRule(rule.stat, Number(event.target.value))} />
                 </label>
               ))}
@@ -171,8 +186,8 @@ export function LeagueSettings({
             ))}
           </div>
           <div className="yahoo-placeholder">
-            <span className="status-dot" />
-            <div><strong>Yahoo import pending</strong><p>Once approved, imported values will be staged here for confirmation before they change the active draft model.</p></div>
+            <span className="status-dot ready" />
+            <div><strong>Yahoo league 595211 loaded</strong><p>Trip&apos;s fixed scoring, roster, and draft settings are the editable local default.</p></div>
           </div>
         </aside>
       </div>

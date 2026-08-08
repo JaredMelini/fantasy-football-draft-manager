@@ -29,7 +29,7 @@ test("server-renders the fantasy football draft room", async () => {
 
   const html = await response.text();
   assert.match(html, /<title>Draft Intelligence — Fantasy Football Draft Manager<\/title>/i);
-  assert.match(html, /Sunday Night Strategists/);
+  assert.match(html, /Trip/);
   assert.match(html, /Draft Room/);
   assert.match(html, /Mock Lab/);
   assert.match(html, /Offline Bridge/);

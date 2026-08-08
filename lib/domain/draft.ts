@@ -6,6 +6,10 @@ import type {
   RosterSlot,
 } from "./types";
 
+export function draftRosterSize(league: LeagueSettings): number {
+  return league.rosterSlots.length + Math.max(0, league.benchSlots ?? 0);
+}
+
 export function teamForOverallPick(
   overall: number,
   teams: DraftTeam[],

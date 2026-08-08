@@ -49,8 +49,8 @@ test("turns captured names into ordered event-sourced picks", () => {
   const picks = replayDraftEvents(events).picks;
 
   assert.equal(picks.length, existingPicks.length + 2);
-  assert.deepEqual(picks.slice(-2).map((pick) => pick.overall), [7, 8]);
-  assert.deepEqual(picks.slice(-2).map((pick) => pick.teamId), ["user", "team-8"]);
+  assert.deepEqual(picks.slice(-2).map((pick) => pick.overall), [1, 2]);
+  assert.deepEqual(picks.slice(-2).map((pick) => pick.teamId), ["team-1", "team-2"]);
 });
 
 test("round-trips a complete portable offline package", () => {

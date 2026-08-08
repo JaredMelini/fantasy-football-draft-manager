@@ -1,7 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { playerIdsForTeam, teamForOverallPick } from "@/lib/domain/draft";
+import {
+  draftRosterSize,
+  playerIdsForTeam,
+  teamForOverallPick,
+} from "@/lib/domain/draft";
 import { evaluateUserDraft } from "@/lib/domain/draft-evaluation";
 import { replayDraftEvents } from "@/lib/domain/draft-session";
 import { assignRoster } from "@/lib/domain/roster";
@@ -43,8 +47,12 @@ export function MockLab({
 }: MockLabProps) {
   const [replayPosition, setReplayPosition] = useState<number | "live">("live");
   const teams = useMemo(
-    () => buildDemoTeams(Math.max(1, Math.round(league.teamCount || 1))),
-    [league.teamCount],
+    () =>
+      buildDemoTeams(
+        Math.max(1, Math.round(league.teamCount || 1)),
+        league.userDraftSlot ?? 1,
+      ),
+    [league.teamCount, league.userDraftSlot],
   );
   const userTeam = teams.find((team) => team.isUser)!;
   const maximumSequence = Math.max(0, ...events.map((event) => event.sequence));
@@ -62,7 +70,7 @@ export function MockLab({
   );
   const maximumPicks = Math.min(
     players.filter((player) => !player.excluded).length,
-    teams.length * league.rosterSlots.length,
+    teams.length * draftRosterSize(league),
   );
   const complete = activePicks.length >= maximumPicks;
   const evaluation = evaluateUserDraft({

@@ -2,7 +2,7 @@
 
 Fantasy Football Draft Manager is a personal, non-commercial web application for league-specific Yahoo Fantasy Football draft recommendations.
 
-> **Project status:** Offline-first draft companion and Advanced Decision Engine complete; Yahoo API-access review pending.
+> **Project status:** Offline-first draft companion and Advanced Decision Engine complete; the fixed Yahoo league setup for league 595211 is loaded locally, while Yahoo API-access review remains pending.
 
 The interface uses a dark, high-contrast shadcn design system with responsive navigation and consistent controls across every workflow.
 
@@ -47,7 +47,9 @@ The application will not submit draft picks, change rosters, scrape Yahoo web pa
 
 ## Availability
 
-The foundation, league-settings audit, position-based rankings workflow, event-sourced manual draft, internal Mock Lab, Offline Bridge, and Advanced Decision Engine are implemented. Recommendations account for position rank and tier, live replacement levels, opponent needs, positional runs, risk and upside preference, seeded wait scenarios, and completed-roster forecasts. Best Overall, Safest, Upside, and Positional Pivot views compare the leading candidates. Yahoo connectivity will be added behind the prepared provider adapter after API access and live-draft behavior are verified.
+The foundation, league-settings audit, position-based rankings workflow, event-sourced manual draft, internal Mock Lab, Offline Bridge, and Advanced Decision Engine are implemented. The editable local default is the eight-team Yahoo league `Trip`: its snake-draft schedule, 90-second clock, nine starters, six bench spots, one IR spot, and all 39 enabled scoring modifiers are persisted in the app. Recommendations account for position rank and tier, live replacement levels, opponent needs, positional runs, risk and upside preference, seeded wait scenarios, and completed-roster forecasts. Best Overall, Safest, Upside, and Positional Pivot views compare the leading candidates.
+
+Yahoo is configured to randomize this league's draft order 30 minutes before the draft, so the user's draft slot is intentionally left pending and editable in League Setup. The settings audit also flags any scoring category that the current player projection data does not populate. Yahoo connectivity will be added behind the prepared provider adapter after API access and live-draft behavior are verified.
 
 ## Project plan
 

@@ -1,7 +1,10 @@
 "use client";
 
 import type { OfflineDraftPackage } from "./offline-package";
-import { parseOfflinePackage } from "./offline-package";
+import {
+  createDefaultOfflinePackage,
+  parseOfflinePackage,
+} from "./offline-package";
 import { isSyntheticDemoPlayer } from "./sample-data";
 
 const STORAGE_KEY = "fantasy-draft-manager:offline-package:v1";
@@ -15,7 +18,8 @@ function removeSyntheticDemoPlayers(
   const removedPlayerIds = new Set(
     value.players.filter(isSyntheticDemoPlayer).map((player) => player.id),
   );
-  if (removedPlayerIds.size === 0) return value;
+  const leagueWasDemo = value.league.id === "demo-2026";
+  if (removedPlayerIds.size === 0 && !leagueWasDemo) return value;
   const removedEventIds = new Set(
     value.events
       .filter(
@@ -27,14 +31,24 @@ function removeSyntheticDemoPlayers(
   );
   return {
     ...value,
+    ...(leagueWasDemo
+      ? {
+          league: createDefaultOfflinePackage().league,
+          events: [],
+        }
+      : {}),
     players: value.players.filter(
       (player) => !removedPlayerIds.has(player.id),
     ),
-    events: value.events.filter((event) =>
-      event.type === "pick_made"
-        ? !removedPlayerIds.has(event.pick.playerId)
-        : !removedEventIds.has(event.targetEventId),
-    ),
+    ...(!leagueWasDemo
+      ? {
+          events: value.events.filter((event) =>
+            event.type === "pick_made"
+              ? !removedPlayerIds.has(event.pick.playerId)
+              : !removedEventIds.has(event.targetEventId),
+          ),
+        }
+      : {}),
   };
 }
 

@@ -1,4 +1,5 @@
 import {
+  draftRosterSize,
   picksUntilTeamTurn,
   playerIdsForTeam,
   roundForOverallPick,
@@ -238,7 +239,7 @@ export function simulateDraftToEnd(input: {
 }): DraftEvent[] {
   let events = [...input.events];
   const maximumPicks = Math.min(
-    input.maximumPicks ?? input.teams.length * input.league.rosterSlots.length,
+    input.maximumPicks ?? input.teams.length * draftRosterSize(input.league),
     input.players.filter((player) => !player.excluded).length,
   );
 

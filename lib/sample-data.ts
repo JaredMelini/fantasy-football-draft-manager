@@ -36,6 +36,79 @@ export const demoLeague: LeagueSettings = {
   ],
 };
 
+const yahooScoringRules: LeagueSettings["scoringRules"] = [
+  { stat: "passingYards", label: "Passing yards", pointsPerUnit: 0.04 },
+  { stat: "passingTouchdowns", label: "Passing touchdowns", pointsPerUnit: 6 },
+  { stat: "interceptions", label: "Interceptions thrown", pointsPerUnit: -1 },
+  { stat: "passing40YardCompletions", label: "40+ yard completions", pointsPerUnit: 2 },
+  { stat: "passing40YardTouchdowns", label: "40+ yard passing touchdowns", pointsPerUnit: 2 },
+  { stat: "rushingYards", label: "Rushing yards", pointsPerUnit: 0.1 },
+  { stat: "rushingTouchdowns", label: "Rushing touchdowns", pointsPerUnit: 6 },
+  { stat: "rushing40YardRuns", label: "40+ yard runs", pointsPerUnit: 2 },
+  { stat: "rushing40YardTouchdowns", label: "40+ yard rushing touchdowns", pointsPerUnit: 2 },
+  { stat: "receptions", label: "Receptions", pointsPerUnit: 1 },
+  { stat: "receivingYards", label: "Receiving yards", pointsPerUnit: 0.1 },
+  { stat: "receivingTouchdowns", label: "Receiving touchdowns", pointsPerUnit: 6 },
+  { stat: "receiving40YardReceptions", label: "40+ yard receptions", pointsPerUnit: 2 },
+  { stat: "receiving40YardTouchdowns", label: "40+ yard receiving touchdowns", pointsPerUnit: 2 },
+  { stat: "returnTouchdowns", label: "Return touchdowns", pointsPerUnit: 6 },
+  { stat: "returnYards", label: "Kick and punt return yards", pointsPerUnit: 0.04 },
+  { stat: "twoPointConversions", label: "2-point conversions", pointsPerUnit: 2 },
+  { stat: "fumblesLost", label: "Fumbles lost", pointsPerUnit: -2 },
+  { stat: "offensiveFumbleReturnTouchdowns", label: "Offensive fumble return touchdowns", pointsPerUnit: 6 },
+  { stat: "fieldGoals0To19", label: "Field goals: 0-19 yards", pointsPerUnit: 3 },
+  { stat: "fieldGoals20To29", label: "Field goals: 20-29 yards", pointsPerUnit: 3 },
+  { stat: "fieldGoals30To39", label: "Field goals: 30-39 yards", pointsPerUnit: 3 },
+  { stat: "fieldGoals40To49", label: "Field goals: 40-49 yards", pointsPerUnit: 4 },
+  { stat: "fieldGoals50Plus", label: "Field goals: 50+ yards", pointsPerUnit: 5 },
+  { stat: "extraPointsMade", label: "Extra points made", pointsPerUnit: 1 },
+  { stat: "defensePointsAllowed0", label: "DST points allowed: 0", pointsPerUnit: 10 },
+  { stat: "defensePointsAllowed1To6", label: "DST points allowed: 1-6", pointsPerUnit: 7 },
+  { stat: "defensePointsAllowed7To13", label: "DST points allowed: 7-13", pointsPerUnit: 4 },
+  { stat: "defensePointsAllowed14To20", label: "DST points allowed: 14-20", pointsPerUnit: 1 },
+  { stat: "defensePointsAllowed28To34", label: "DST points allowed: 28-34", pointsPerUnit: -1 },
+  { stat: "defensePointsAllowed35Plus", label: "DST points allowed: 35+", pointsPerUnit: -4 },
+  { stat: "defenseSacks", label: "DST sacks", pointsPerUnit: 1 },
+  { stat: "defenseInterceptions", label: "DST interceptions", pointsPerUnit: 2 },
+  { stat: "defenseFumbleRecoveries", label: "DST fumble recoveries", pointsPerUnit: 2 },
+  { stat: "defenseTouchdowns", label: "DST touchdowns", pointsPerUnit: 6 },
+  { stat: "defenseSafeties", label: "DST safeties", pointsPerUnit: 2 },
+  { stat: "defenseBlockedKicks", label: "DST blocked kicks", pointsPerUnit: 2 },
+  { stat: "defenseReturnTouchdowns", label: "DST kickoff/punt return touchdowns", pointsPerUnit: 6 },
+  { stat: "defenseExtraPointReturns", label: "DST extra-point returns", pointsPerUnit: 2 },
+];
+
+export const yahooLeague: LeagueSettings = {
+  id: "yahoo-595211",
+  providerLeagueId: "595211",
+  name: "Trip",
+  teamCount: 8,
+  draftType: "snake",
+  draftPickSeconds: 90,
+  draftDateTime: "2026-08-30T14:00",
+  draftTimeZone: "America/New_York",
+  draftOrderMode: "randomize-later",
+  keeperLeague: false,
+  draftPositionLimits: {},
+  scoringLabel: "Yahoo Custom · Full PPR · 6 pt Pass TD",
+  fractionalPoints: true,
+  negativePoints: true,
+  scoringRules: yahooScoringRules,
+  rosterSlots: [
+    { id: "QB-1", label: "QB", eligiblePositions: ["QB"] },
+    { id: "WR-1", label: "WR", eligiblePositions: ["WR"] },
+    { id: "WR-2", label: "WR", eligiblePositions: ["WR"] },
+    { id: "RB-1", label: "RB", eligiblePositions: ["RB"] },
+    { id: "RB-2", label: "RB", eligiblePositions: ["RB"] },
+    { id: "TE-1", label: "TE", eligiblePositions: ["TE"] },
+    { id: "FLEX-1", label: "FLEX", eligiblePositions: ["RB", "WR", "TE"] },
+    { id: "K-1", label: "K", eligiblePositions: ["K"] },
+    { id: "DST-1", label: "DST", eligiblePositions: ["DST"] },
+  ],
+  benchSlots: 6,
+  irSlots: 1,
+};
+
 function player(
   id: string,
   name: string,
@@ -164,8 +237,14 @@ export const demoPlayers: Player[] = [
   ...buildDepthPlayers(),
 ];
 
-export function buildDemoTeams(teamCount: number): DraftTeam[] {
-  const userIndex = Math.min(6, teamCount - 1);
+export function buildDemoTeams(
+  teamCount: number,
+  userDraftSlot?: number,
+): DraftTeam[] {
+  const userIndex =
+    userDraftSlot === undefined
+      ? Math.min(6, teamCount - 1)
+      : Math.max(0, Math.min(teamCount - 1, userDraftSlot - 1));
   return Array.from({ length: teamCount }, (_, index) => ({
     id: index === userIndex ? "user" : `team-${index + 1}`,
     name: index === userIndex ? "My Team" : `Team ${index + 1}`,

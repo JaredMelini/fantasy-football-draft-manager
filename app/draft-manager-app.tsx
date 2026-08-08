@@ -15,7 +15,6 @@ import { LeagueSettings } from "./league-settings";
 import { MockLab } from "./mock-lab";
 import { OfflineBridge } from "./offline-bridge";
 import { RankingsStudio } from "./rankings-studio";
-import { eventsFromPicks } from "@/lib/domain/draft-session";
 import {
   clearLocalDraftSnapshot,
   getLocalDraftSnapshot,
@@ -27,7 +26,6 @@ import {
   createDefaultOfflinePackage,
   type OfflineDraftPackage,
 } from "@/lib/offline-package";
-import { buildInitialDemoPicks } from "@/lib/sample-data";
 import type {
   LeagueSettings as LeagueSettingsModel,
   OpponentStrategy,
@@ -63,27 +61,19 @@ export function DraftManagerApp() {
     saveLocalDraftSnapshot({ ...state, ...changes });
   }
 
-  function resetDraft(nextLeague = league) {
-    saveState({
-      events: eventsFromPicks(
-        buildInitialDemoPicks(nextLeague.teamCount),
-        "provider",
-      ),
-    });
+  function resetDraft() {
+    saveState({ events: [] });
   }
 
   function updateLeague(nextLeague: LeagueSettingsModel) {
-    const currentShape = `${league.teamCount}:${league.draftType}:${league.rosterSlots.map((slot) => `${slot.label}-${slot.eligiblePositions.join("/")}`).join("|")}`;
-    const nextShape = `${nextLeague.teamCount}:${nextLeague.draftType}:${nextLeague.rosterSlots.map((slot) => `${slot.label}-${slot.eligiblePositions.join("/")}`).join("|")}`;
+    const currentShape = `${league.teamCount}:${league.draftType}:${league.userDraftSlot ?? "pending"}:${league.benchSlots ?? 0}:${league.rosterSlots.map((slot) => `${slot.label}-${slot.eligiblePositions.join("/")}`).join("|")}`;
+    const nextShape = `${nextLeague.teamCount}:${nextLeague.draftType}:${nextLeague.userDraftSlot ?? "pending"}:${nextLeague.benchSlots ?? 0}:${nextLeague.rosterSlots.map((slot) => `${slot.label}-${slot.eligiblePositions.join("/")}`).join("|")}`;
     saveState({
       league: nextLeague,
       events:
         currentShape === nextShape
           ? events
-          : eventsFromPicks(
-              buildInitialDemoPicks(nextLeague.teamCount),
-              "provider",
-            ),
+          : [],
     });
   }
 
@@ -137,7 +127,7 @@ export function DraftManagerApp() {
         <div className="app-content">
           {view === "draft" && (
             <DraftRoom
-              key={`${league.teamCount}-${league.draftType}`}
+              key={`${league.teamCount}-${league.draftType}-${league.userDraftSlot ?? "pending"}`}
               league={league}
               players={players}
               events={events}
