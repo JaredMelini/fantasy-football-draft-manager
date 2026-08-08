@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 import {
   draftRosterSize,
   picksUntilTeamTurn,
@@ -64,6 +64,10 @@ interface DraftRoomProps {
   strategy: OpponentStrategy;
   onEventsChange: (events: DraftEvent[]) => void;
   onResetDraft: () => void;
+  onRunBusyTask: (
+    label: string,
+    task: () => void | Promise<void>,
+  ) => Promise<void>;
 }
 
 export function DraftRoom({
@@ -74,6 +78,7 @@ export function DraftRoom({
   strategy,
   onEventsChange,
   onResetDraft,
+  onRunBusyTask,
 }: DraftRoomProps) {
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -81,6 +86,8 @@ export function DraftRoom({
   const [riskTolerance, setRiskTolerance] = useState<RiskTolerance>("balanced");
   const [showQuickCapture, setShowQuickCapture] = useState(false);
   const [captureText, setCaptureText] = useState("");
+  const deferredSearch = useDeferredValue(search);
+  const deferredCaptureText = useDeferredValue(captureText);
   const effectiveTeamCount = Math.max(1, Math.round(league.teamCount || 1));
   const teams = useMemo(
     () => buildDemoTeams(effectiveTeamCount, league.userDraftSlot ?? 1),
@@ -96,9 +103,13 @@ export function DraftRoom({
     () => new Set(picks.map((pick) => pick.playerId)),
     [picks],
   );
-  const maximumPicks = Math.min(
-    players.filter((player) => !player.excluded).length,
-    effectiveTeamCount * draftRosterSize(league),
+  const maximumPicks = useMemo(
+    () =>
+      Math.min(
+        players.filter((player) => !player.excluded).length,
+        effectiveTeamCount * draftRosterSize(league),
+      ),
+    [effectiveTeamCount, league, players],
   );
   const draftComplete = picks.length >= maximumPicks;
   const currentOverall = picks.length + 1;
@@ -106,9 +117,18 @@ export function DraftRoom({
   const currentTeam = draftComplete
     ? userTeam
     : teamForOverallPick(currentOverall, teams, league.draftType);
-  const userPlayerIds = playerIdsForTeam(picks, userTeam.id);
-  const userRoster = players.filter((player) => userPlayerIds.includes(player.id));
-  const rosterAssignment = assignRoster(userRoster, league.rosterSlots);
+  const userPlayerIds = useMemo(
+    () => new Set(playerIdsForTeam(picks, userTeam.id)),
+    [picks, userTeam.id],
+  );
+  const userRoster = useMemo(
+    () => players.filter((player) => userPlayerIds.has(player.id)),
+    [players, userPlayerIds],
+  );
+  const rosterAssignment = useMemo(
+    () => assignRoster(userRoster, league.rosterSlots),
+    [league.rosterSlots, userRoster],
+  );
   const currentTurnOffset = draftComplete
     ? 0
     : picksUntilTeamTurn(
@@ -130,51 +150,98 @@ export function DraftRoom({
   const decisionOverall = currentTeam.isUser
     ? currentOverall
     : currentOverall + currentTurnOffset;
-  const recommendations = draftComplete
-    ? []
-    : recommendPlayers({
-        players,
-        league,
-        picks,
-        userRoster,
-        currentOverall,
-        picksUntilNextTurn: nextTurnGap,
-        teams,
-        seed,
-        riskTolerance,
-        limit: players.length,
-      });
-  const rolloutAnalysis = draftComplete
-    ? { summaries: [], lenses: [] }
-    : analyzeCandidateRollouts({
-        recommendations,
-        players,
-        league,
-        picks,
-        teams,
-        userTeamId: userTeam.id,
-        userRoster,
-        decisionOverall,
-        seed,
-        riskTolerance,
-      });
-  const best = recommendations[0];
-  const recommendationScores = new Map(
-    recommendations.map((item) => [item.player.id, item.breakdown.total]),
+  const recommendations = useMemo(
+    () =>
+      draftComplete
+        ? []
+        : recommendPlayers({
+            players,
+            league,
+            picks,
+            userRoster,
+            currentOverall,
+            picksUntilNextTurn: nextTurnGap,
+            teams,
+            seed,
+            riskTolerance,
+            simulationCount: 64,
+            limit: players.length,
+          }),
+    [
+      currentOverall,
+      draftComplete,
+      league,
+      nextTurnGap,
+      picks,
+      players,
+      riskTolerance,
+      seed,
+      teams,
+      userRoster,
+    ],
   );
-  const availablePlayers = players
-    .filter((player) => !draftedIds.has(player.id) && !player.excluded)
-    .filter((player) => position === "ALL" || player.positions.includes(position))
-    .filter((player) =>
-      `${player.name} ${player.nflTeam}`.toLowerCase().includes(search.toLowerCase()),
-    )
-    .sort((a, b) =>
-      position === "ALL"
-        ? (recommendationScores.get(b.id) ?? -Infinity) -
-            (recommendationScores.get(a.id) ?? -Infinity)
-        : getPositionRank(a, players, position) -
-          getPositionRank(b, players, position),
-    );
+  const rolloutAnalysis = useMemo(
+    () =>
+      draftComplete
+        ? { summaries: [], lenses: [] }
+        : analyzeCandidateRollouts({
+            recommendations,
+            players,
+            league,
+            picks,
+            teams,
+            userTeamId: userTeam.id,
+            userRoster,
+            decisionOverall,
+            seed,
+            riskTolerance,
+            simulationCount: 18,
+            candidateLimit: 4,
+          }),
+    [
+      decisionOverall,
+      draftComplete,
+      league,
+      picks,
+      players,
+      recommendations,
+      riskTolerance,
+      seed,
+      teams,
+      userRoster,
+      userTeam.id,
+    ],
+  );
+  const best = recommendations[0];
+  const recommendationScores = useMemo(
+    () =>
+      new Map(
+        recommendations.map((item) => [item.player.id, item.breakdown.total]),
+      ),
+    [recommendations],
+  );
+  const availablePlayers = useMemo(
+    () =>
+      players
+        .filter((player) => !draftedIds.has(player.id) && !player.excluded)
+        .filter(
+          (player) =>
+            position === "ALL" || player.positions.includes(position),
+        )
+        .filter((player) =>
+          `${player.name} ${player.nflTeam}`
+            .toLowerCase()
+            .includes(deferredSearch.toLowerCase()),
+        )
+        .sort((a, b) =>
+          position === "ALL"
+            ? (recommendationScores.get(b.id) ?? -Infinity) -
+              (recommendationScores.get(a.id) ?? -Infinity)
+            : getPositionRank(a, players, position) -
+              getPositionRank(b, players, position),
+        ),
+    [deferredSearch, draftedIds, players, position, recommendationScores],
+  );
   const selected = selectedPlayerId
     ? recommendations.find(
         (recommendation) => recommendation.player.id === selectedPlayerId,
@@ -186,8 +253,8 @@ export function DraftRoom({
       )
     : undefined;
   const capturePreview = useMemo(
-    () => parseDraftPickCapture(captureText, players, draftedIds),
-    [captureText, draftedIds, players],
+    () => parseDraftPickCapture(deferredCaptureText, players, draftedIds),
+    [deferredCaptureText, draftedIds, players],
   );
 
   function logPick(playerId: string) {
@@ -206,55 +273,65 @@ export function DraftRoom({
       players,
     });
     if (!validation.valid) return;
-    onEventsChange([
-      ...events,
-      createPickEvent({
-        events,
-        pick,
-        source: "manual",
-        recommendedPlayerId: best?.player.id,
-      }),
-    ]);
-    setSelectedPlayerId(null);
+    void onRunBusyTask("Updating draft recommendations", () => {
+      onEventsChange([
+        ...events,
+        createPickEvent({
+          events,
+          pick,
+          source: "manual",
+          recommendedPlayerId: best?.player.id,
+        }),
+      ]);
+      setSelectedPlayerId(null);
+    });
   }
 
   function simulateOne() {
     if (draftComplete || currentTeam.isUser) return;
-    onEventsChange(
-      simulateNextPick({ events, teams, league, players, seed, strategy }),
-    );
-    setSelectedPlayerId(null);
+    void onRunBusyTask("Simulating the next pick", () => {
+      onEventsChange(
+        simulateNextPick({ events, teams, league, players, seed, strategy }),
+      );
+      setSelectedPlayerId(null);
+    });
   }
 
   function simulateToUser() {
     if (draftComplete || currentTeam.isUser) return;
-    onEventsChange(
-      simulateUntilUserTurn({ events, teams, league, players, seed, strategy }),
-    );
-    setSelectedPlayerId(null);
+    void onRunBusyTask("Simulating to your next pick", () => {
+      onEventsChange(
+        simulateUntilUserTurn({ events, teams, league, players, seed, strategy }),
+      );
+      setSelectedPlayerId(null);
+    });
   }
 
   function undoLastPick() {
     const undo = createUndoEvent(events);
     if (!undo) return;
-    onEventsChange([...events, undo]);
-    setSelectedPlayerId(null);
+    void onRunBusyTask("Recalculating after undo", () => {
+      onEventsChange([...events, undo]);
+      setSelectedPlayerId(null);
+    });
   }
 
   function importCapturedPicks() {
     if (capturePreview.matches.length === 0) return;
-    onEventsChange(
-      appendCapturedPicks({
-        events,
-        matches: capturePreview.matches,
-        teams,
-        league,
-        maximumPicks,
-      }),
-    );
-    setCaptureText("");
-    setShowQuickCapture(false);
-    setSelectedPlayerId(null);
+    void onRunBusyTask("Importing picks and updating recommendations", () => {
+      onEventsChange(
+        appendCapturedPicks({
+          events,
+          matches: capturePreview.matches,
+          teams,
+          league,
+          maximumPicks,
+        }),
+      );
+      setCaptureText("");
+      setShowQuickCapture(false);
+      setSelectedPlayerId(null);
+    });
   }
 
   const upcomingUserPick = currentOverall + currentTurnOffset;
@@ -286,7 +363,7 @@ export function DraftRoom({
         <div className="context-actions">
           <Button variant="outline" size="sm" onClick={() => setShowQuickCapture((current) => !current)}>{showQuickCapture ? "Close capture" : "Quick capture"}</Button>
           <Button variant="outline" size="sm" onClick={undoLastPick} disabled={picks.length === 0}>Undo last</Button>
-          <Button variant="ghost" size="sm" onClick={onResetDraft}>Reset session</Button>
+          <Button variant="ghost" size="sm" onClick={() => void onRunBusyTask("Resetting the draft session", onResetDraft)}>Reset session</Button>
         </div>
       </section>
 
@@ -357,7 +434,7 @@ export function DraftRoom({
               </div>
               <label className="risk-control">
                 <span>Risk profile</span>
-                <select value={riskTolerance} onChange={(event) => setRiskTolerance(event.target.value as RiskTolerance)} aria-label="Recommendation risk profile">
+                <select value={riskTolerance} onChange={(event) => { const nextRisk = event.target.value as RiskTolerance; void onRunBusyTask("Recalculating recommendations", () => setRiskTolerance(nextRisk)); }} aria-label="Recommendation risk profile">
                   <option value="safe">Safer floor</option>
                   <option value="balanced">Balanced</option>
                   <option value="upside">Chase upside</option>

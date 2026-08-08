@@ -134,6 +134,7 @@ function appendSimulatedPick(input: {
       picksUntilNextTurn: nextTurnGap,
       teams: input.teams,
       seed: input.seed,
+      simulationCount: 32,
       limit: input.players.length,
     });
     const filledBefore = assignRoster(roster, input.league.rosterSlots).starters.length;

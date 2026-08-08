@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
+import { useCallback, useState, useSyncExternalStore } from "react";
 import {
   Database,
   FlaskConical,
   LayoutDashboard,
   ListOrdered,
+  LoaderCircle,
   ShieldCheck,
   SlidersHorizontal,
   WifiOff,
@@ -40,6 +41,7 @@ const DEFAULT_STATE = createDefaultOfflinePackage();
 
 export function DraftManagerApp() {
   const [view, setView] = useState<AppView>("draft");
+  const [busyLabel, setBusyLabel] = useState<string | null>(null);
   const storedState = useSyncExternalStore(
     subscribeToLocalDraft,
     getLocalDraftSnapshot,
@@ -56,6 +58,26 @@ export function DraftManagerApp() {
     { id: "offline" as const, label: "Data & Backup", detail: "Offline Bridge", icon: Database },
   ];
   const activeNav = navItems.find((item) => item.id === view)!;
+
+  const runBusyTask = useCallback(
+    async (label: string, task: () => void | Promise<void>) => {
+      setBusyLabel(label);
+      await new Promise<void>((resolve) =>
+        window.requestAnimationFrame(() =>
+          window.requestAnimationFrame(() => resolve()),
+        ),
+      );
+      try {
+        await task();
+        await new Promise<void>((resolve) =>
+          window.requestAnimationFrame(() => resolve()),
+        );
+      } finally {
+        setBusyLabel(null);
+      }
+    },
+    [],
+  );
 
   function saveState(changes: Partial<OfflineDraftPackage>) {
     saveLocalDraftSnapshot({ ...state, ...changes });
@@ -83,7 +105,16 @@ export function DraftManagerApp() {
   }
 
   return (
-    <main className="app-shell">
+    <main className="app-shell" aria-busy={Boolean(busyLabel)}>
+      {busyLabel && (
+        <div className="busy-overlay" role="status" aria-live="polite">
+          <div className="busy-card">
+            <LoaderCircle aria-hidden="true" />
+            <strong>{busyLabel}</strong>
+            <span>This should only take a moment.</span>
+          </div>
+        </div>
+      )}
       <aside className="app-sidebar">
         <Button variant="ghost" className="sidebar-brand" onClick={() => setView("draft")}>
           <span className="brand-mark">DI</span>
@@ -135,6 +166,7 @@ export function DraftManagerApp() {
               strategy={opponentStrategy}
               onEventsChange={(nextEvents) => saveState({ events: nextEvents })}
               onResetDraft={() => resetDraft()}
+              onRunBusyTask={runBusyTask}
             />
           )}
           {view === "mock" && (
@@ -151,6 +183,7 @@ export function DraftManagerApp() {
               }
               onResetDraft={() => resetDraft()}
               onOpenDraft={() => setView("draft")}
+              onRunBusyTask={runBusyTask}
             />
           )}
           {view === "rankings" && (
@@ -162,6 +195,7 @@ export function DraftManagerApp() {
               onReset={() =>
                 saveState({ players: createDefaultOfflinePackage().players })
               }
+              onRunBusyTask={runBusyTask}
             />
           )}
           {view === "league" && (

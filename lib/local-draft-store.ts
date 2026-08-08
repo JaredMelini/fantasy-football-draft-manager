@@ -11,6 +11,18 @@ const STORAGE_KEY = "fantasy-draft-manager:offline-package:v1";
 const listeners = new Set<() => void>();
 let cachedRaw: string | null | undefined;
 let cachedValue: OfflineDraftPackage | null = null;
+let pendingValue: OfflineDraftPackage | null = null;
+let pendingWriteTimer: ReturnType<typeof setTimeout> | null = null;
+
+function flushPendingWrite(): void {
+  if (typeof window === "undefined" || !pendingValue) return;
+  const raw = JSON.stringify(pendingValue);
+  window.localStorage.setItem(STORAGE_KEY, raw);
+  cachedRaw = raw;
+  cachedValue = pendingValue;
+  pendingValue = null;
+  pendingWriteTimer = null;
+}
 
 function removeSyntheticDemoPlayers(
   value: OfflineDraftPackage,
@@ -54,6 +66,7 @@ function removeSyntheticDemoPlayers(
 
 function readStoredPackage(): OfflineDraftPackage | null {
   if (typeof window === "undefined") return null;
+  if (pendingValue) return cachedValue;
   const raw = window.localStorage.getItem(STORAGE_KEY);
   if (raw === cachedRaw) return cachedValue;
   cachedRaw = raw;
@@ -81,9 +94,11 @@ export function subscribeToLocalDraft(listener: () => void): () => void {
     notify();
   };
   window.addEventListener("storage", handleStorage);
+  window.addEventListener("pagehide", flushPendingWrite);
   return () => {
     listeners.delete(listener);
     window.removeEventListener("storage", handleStorage);
+    window.removeEventListener("pagehide", flushPendingWrite);
   };
 }
 
@@ -96,16 +111,19 @@ export function getServerDraftSnapshot(): null {
 }
 
 export function saveLocalDraftSnapshot(value: OfflineDraftPackage): void {
-  const raw = JSON.stringify(value);
-  window.localStorage.setItem(STORAGE_KEY, raw);
-  cachedRaw = raw;
   cachedValue = value;
+  pendingValue = value;
+  if (pendingWriteTimer) window.clearTimeout(pendingWriteTimer);
+  pendingWriteTimer = window.setTimeout(flushPendingWrite, 180);
   notify();
 }
 
 export function clearLocalDraftSnapshot(): void {
+  if (pendingWriteTimer) window.clearTimeout(pendingWriteTimer);
   window.localStorage.removeItem(STORAGE_KEY);
   cachedRaw = null;
   cachedValue = null;
+  pendingValue = null;
+  pendingWriteTimer = null;
   notify();
 }

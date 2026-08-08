@@ -31,6 +31,10 @@ interface MockLabProps {
   onStrategyChange: (strategy: OpponentStrategy) => void;
   onResetDraft: () => void;
   onOpenDraft: () => void;
+  onRunBusyTask: (
+    label: string,
+    task: () => void | Promise<void>,
+  ) => Promise<void>;
 }
 
 export function MockLab({
@@ -44,6 +48,7 @@ export function MockLab({
   onStrategyChange,
   onResetDraft,
   onOpenDraft,
+  onRunBusyTask,
 }: MockLabProps) {
   const [replayPosition, setReplayPosition] = useState<number | "live">("live");
   const teams = useMemo(
@@ -55,13 +60,22 @@ export function MockLab({
     [league.teamCount, league.userDraftSlot],
   );
   const userTeam = teams.find((team) => team.isUser)!;
-  const maximumSequence = Math.max(0, ...events.map((event) => event.sequence));
+  const maximumSequence = useMemo(
+    () => Math.max(0, ...events.map((event) => event.sequence)),
+    [events],
+  );
   const throughSequence =
     replayPosition === "live"
       ? maximumSequence
       : Math.min(replayPosition, maximumSequence);
-  const visibleEvents = events.filter((event) => event.sequence <= throughSequence);
-  const replayed = replayDraftEvents(visibleEvents);
+  const visibleEvents = useMemo(
+    () => events.filter((event) => event.sequence <= throughSequence),
+    [events, throughSequence],
+  );
+  const replayed = useMemo(
+    () => replayDraftEvents(visibleEvents),
+    [visibleEvents],
+  );
   const activePicks = replayed.picks;
   const currentTeam = teamForOverallPick(
     activePicks.length + 1,
@@ -73,13 +87,20 @@ export function MockLab({
     teams.length * draftRosterSize(league),
   );
   const complete = activePicks.length >= maximumPicks;
-  const evaluation = evaluateUserDraft({
-    events: visibleEvents,
-    userTeamId: userTeam.id,
-    players,
-    league,
-  });
-  const undoneCount = visibleEvents.filter((event) => event.type === "pick_undone").length;
+  const evaluation = useMemo(
+    () =>
+      evaluateUserDraft({
+        events: visibleEvents,
+        userTeamId: userTeam.id,
+        players,
+        league,
+      }),
+    [league, players, userTeam.id, visibleEvents],
+  );
+  const undoneCount = useMemo(
+    () => visibleEvents.filter((event) => event.type === "pick_undone").length,
+    [visibleEvents],
+  );
 
   function advanceToUser() {
     const livePicks = replayDraftEvents(events).picks;
@@ -92,17 +113,21 @@ export function MockLab({
       onOpenDraft();
       return;
     }
-    onEventsChange(
-      simulateUntilUserTurn({ events, teams, league, players, seed, strategy }),
-    );
-    setReplayPosition("live");
+    void onRunBusyTask("Simulating to your next pick", () => {
+      onEventsChange(
+        simulateUntilUserTurn({ events, teams, league, players, seed, strategy }),
+      );
+      setReplayPosition("live");
+    });
   }
 
   function finishMock() {
-    onEventsChange(
-      simulateDraftToEnd({ events, teams, league, players, seed, strategy }),
-    );
-    setReplayPosition("live");
+    void onRunBusyTask("Finishing the mock draft", () => {
+      onEventsChange(
+        simulateDraftToEnd({ events, teams, league, players, seed, strategy }),
+      );
+      setReplayPosition("live");
+    });
   }
 
   return (
@@ -184,7 +209,7 @@ export function MockLab({
         <aside className="event-timeline panel">
           <div className="section-heading">
             <div><p className="eyebrow">Decision history</p><h2>Pick replay</h2></div>
-            <Button variant="ghost" size="sm" onClick={() => { onResetDraft(); setReplayPosition("live"); }}>Reset</Button>
+            <Button variant="ghost" size="sm" onClick={() => void onRunBusyTask("Resetting the mock draft", () => { onResetDraft(); setReplayPosition("live"); })}>Reset</Button>
           </div>
           <div className="timeline-list">
             {[...replayed.activePickEvents].reverse().map((event) => {

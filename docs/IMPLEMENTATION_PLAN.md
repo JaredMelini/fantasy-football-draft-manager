@@ -417,3 +417,4 @@ Official references: [Yahoo Fantasy API documentation](https://sports.yahoo.com/
 - [x] Unknown randomized draft slot is shown as pending and can be entered in League Setup after Yahoo announces the order.
 - [ ] Add the actual user draft slot when Yahoo randomizes the order 30 minutes before the August 30 draft.
 - [ ] Add projections for bonus-play, return, kicker-distance, and DST points-allowed categories, or use a licensed source-projected total that already reflects these rules.
+- [x] Interactive performance pass: memoized decision analysis, deferred search filtering, batched local persistence, lighter mock simulations, and blocking progress feedback for long actions.

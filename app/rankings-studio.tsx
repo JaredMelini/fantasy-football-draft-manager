@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useDeferredValue, useMemo, useState } from "react";
 import type { ChangeEvent } from "react";
 import {
   applyRankingImport,
@@ -29,6 +29,10 @@ interface RankingsStudioProps {
   players: Player[];
   onPlayersChange: (players: Player[]) => void;
   onReset: () => void;
+  onRunBusyTask: (
+    label: string,
+    task: () => void | Promise<void>,
+  ) => Promise<void>;
 }
 
 const mappingFields: Array<{ field: RankingField; label: string; required?: boolean }> = [
@@ -60,6 +64,7 @@ export function RankingsStudio({
   players,
   onPlayersChange,
   onReset,
+  onRunBusyTask,
 }: RankingsStudioProps) {
   const [search, setSearch] = useState("");
   const [table, setTable] = useState<RankingTable | null>(null);
@@ -76,6 +81,7 @@ export function RankingsStudio({
   const [sortKey, setSortKey] = useState<RankingSortKey>("rank");
   const [sortDirection, setSortDirection] =
     useState<SortDirection>("ascending");
+  const deferredSearch = useDeferredValue(search);
 
   const preview = useMemo(
     () =>
@@ -108,7 +114,7 @@ export function RankingsStudio({
       .filter((player) =>
         `${player.name} ${player.nflTeam} ${player.positions.join(" ")}`
           .toLowerCase()
-          .includes(search.toLowerCase()),
+          .includes(deferredSearch.toLowerCase()),
       )
       .sort((a, b) => {
         if (sortKey === "player" || sortKey === "notes") {
@@ -123,7 +129,7 @@ export function RankingsStudio({
         if (right === undefined) return -1;
         return (left - right) * direction || a.name.localeCompare(b.name);
       });
-  }, [activePosition, players, search, sortDirection, sortKey]);
+  }, [activePosition, deferredSearch, players, sortDirection, sortKey]);
   const reviewState = useMemo(() => {
     const automaticIds = new Set(
       preview?.updates.map((update) => update.playerId) ?? [],
@@ -181,65 +187,75 @@ export function RankingsStudio({
   async function handleFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
-    setFileError("");
-    setImportApplied(false);
-    try {
-      let parsed: RankingTable;
-      if (file.name.toLowerCase().endsWith(".xlsx")) {
-        const { readSheet } = await import("read-excel-file/browser");
-        const rows = await readSheet(file);
-        parsed = tableFromRows(rows);
-      } else {
-        parsed = parseDelimitedRankings(await file.text());
+    const input = event.currentTarget;
+    await onRunBusyTask("Reading and matching rankings", async () => {
+      setFileError("");
+      setImportApplied(false);
+      try {
+        let parsed: RankingTable;
+        if (file.name.toLowerCase().endsWith(".xlsx")) {
+          const { readSheet } = await import("read-excel-file/browser");
+          const rows = await readSheet(file);
+          parsed = tableFromRows(rows);
+        } else {
+          parsed = parseDelimitedRankings(await file.text());
+        }
+        if (parsed.headers.length === 0 || parsed.rows.length === 0) {
+          throw new Error(
+            "The selected file does not contain a header and ranking rows.",
+          );
+        }
+        setTable(parsed);
+        setImportMode("overall");
+        setColumnMap(guessRankingColumnMap(parsed.headers));
+        setFileName(file.name);
+        setReviewDecisions({});
+        setReviewOpen(true);
+      } catch (error) {
+        setTable(null);
+        setFileName("");
+        setFileError(
+          error instanceof Error ? error.message : "Unable to read that file.",
+        );
+      } finally {
+        input.value = "";
       }
-      if (parsed.headers.length === 0 || parsed.rows.length === 0) {
-        throw new Error("The selected file does not contain a header and ranking rows.");
-      }
-      setTable(parsed);
-      setImportMode("overall");
-      setColumnMap(guessRankingColumnMap(parsed.headers));
-      setFileName(file.name);
-      setReviewDecisions({});
-      setReviewOpen(true);
-    } catch (error) {
-      setTable(null);
-      setFileName("");
-      setFileError(error instanceof Error ? error.message : "Unable to read that file.");
-    } finally {
-      event.target.value = "";
-    }
+    });
   }
 
   async function handleUdkFiles(event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? []);
     if (files.length === 0) return;
-    setFileError("");
-    setImportApplied(false);
-    try {
-      const parsed = await Promise.all(
-        files.map(async (file) => parseDelimitedRankings(await file.text())),
-      );
-      if (
-        parsed.some(
-          (item) => item.headers.length === 0 || item.rows.length === 0,
-        )
-      ) {
-        throw new Error("Every UDK CSV must contain a header and ranking rows.");
+    const input = event.currentTarget;
+    await onRunBusyTask("Reading and matching UDK rankings", async () => {
+      setFileError("");
+      setImportApplied(false);
+      try {
+        const parsed = await Promise.all(
+          files.map(async (file) => parseDelimitedRankings(await file.text())),
+        );
+        if (
+          parsed.some(
+            (item) => item.headers.length === 0 || item.rows.length === 0,
+          )
+        ) {
+          throw new Error("Every UDK CSV must contain a header and ranking rows.");
+        }
+        setUdkTables(parsed);
+        setUdkFileNames(files.map((file) => file.name));
+        setImportMode("position");
+        setReviewDecisions({});
+        setReviewOpen(true);
+      } catch (error) {
+        setUdkTables([]);
+        setUdkFileNames([]);
+        setFileError(
+          error instanceof Error ? error.message : "Unable to read those files.",
+        );
+      } finally {
+        input.value = "";
       }
-      setUdkTables(parsed);
-      setUdkFileNames(files.map((file) => file.name));
-      setImportMode("position");
-      setReviewDecisions({});
-      setReviewOpen(true);
-    } catch (error) {
-      setUdkTables([]);
-      setUdkFileNames([]);
-      setFileError(
-        error instanceof Error ? error.message : "Unable to read those files.",
-      );
-    } finally {
-      event.target.value = "";
-    }
+    });
   }
 
   function updateColumn(field: RankingField, value: string) {
@@ -261,10 +277,12 @@ export function RankingsStudio({
       reviewState.conflictRows.size > 0 ||
       readyCount === 0
     ) return;
-    onPlayersChange(
-      applyRankingImport(players, reviewState.updates, preview.newPlayers),
-    );
-    setImportApplied(true);
+    void onRunBusyTask("Applying rankings", () => {
+      onPlayersChange(
+        applyRankingImport(players, reviewState.updates, preview.newPlayers),
+      );
+      setImportApplied(true);
+    });
   }
 
   function setReviewDecision(rowId: string, value: string) {
@@ -575,7 +593,7 @@ export function RankingsStudio({
               <span className="sr-only">Search players</span>
               <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search player, team, position" />
             </label>
-            <Button variant="outline" size="sm" onClick={onReset}>Restore starter rankings</Button>
+            <Button variant="outline" size="sm" onClick={() => void onRunBusyTask("Restoring starter rankings", onReset)}>Restore starter rankings</Button>
           </div>
           <div className="position-tabs" aria-label="Ranking position">
             {positions.map((item) => (
