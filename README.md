@@ -1,8 +1,8 @@
 # Fantasy Football Draft Manager
 
-Fantasy Football Draft Manager is a personal, non-commercial web application planned to support informed drafting in Yahoo Fantasy Football leagues.
+Fantasy Football Draft Manager is a personal, non-commercial web application for league-specific Yahoo Fantasy Football draft recommendations.
 
-> **Project status:** Planning and API-access review. The application has not been implemented or released.
+> **Project status:** Foundation development and Yahoo API-access review.
 
 ## Purpose
 
@@ -39,4 +39,8 @@ The application will not submit draft picks, change rosters, scrape Yahoo web pa
 
 ## Availability
 
-This repository currently documents the proposed application while Yahoo API access and technical feasibility are evaluated. There is no public application or app-store listing at this time.
+The first approval-independent milestone is in development. Yahoo connectivity will be added behind a provider adapter after API access and live-draft behavior are verified.
+
+## Project plan
+
+The detailed architecture, milestones, acceptance criteria, Yahoo feasibility gate, and current execution status are maintained in [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md).
