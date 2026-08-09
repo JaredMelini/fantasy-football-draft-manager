@@ -406,6 +406,8 @@ export function RankingsStudio({
             <p>
               While logged in, open each position, choose More → Download CSV,
               then select all of the exports here at once. FLEX is not needed.
+              Points are imported for offensive players and are optional for K
+              and D/ST because those exports do not include them.
             </p>
             <a
               className="udk-link"

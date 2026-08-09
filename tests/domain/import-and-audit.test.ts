@@ -136,6 +136,38 @@ test("imports UDK ranks and tiers as position-specific values", () => {
   assert.equal(rookie.sourceAdp, "14.02");
 });
 
+test("accepts UDK kicker and defense exports without a points column", () => {
+  const kickerTable = parseDelimitedRankings(
+    [
+      "Name,Position,Team,Bye Week,Rank,Risk,Upside,ADP,Tier",
+      "Brandon Aubrey,K,DAL,10,1,2.0,9.0,13.02,1",
+    ].join("\n"),
+  );
+  const defenseTable = parseDelimitedRankings(
+    [
+      "Name,Position,Team,Bye Week,Rank,Risk,Upside,ADP,Tier",
+      "Denver Broncos,D/ST,DEN,12,1,2.5,8.5,14.03,1",
+    ].join("\n"),
+  );
+
+  const result = buildUdkRankingImport(
+    [kickerTable, defenseTable],
+    demoPlayers,
+  );
+
+  assert.deepEqual(result.errors, []);
+  assert.equal(result.newPlayers.length, 2);
+  assert.deepEqual(
+    result.newPlayers.map((player) => player.positions[0]),
+    ["K", "DST"],
+  );
+  assert.ok(
+    result.newPlayers.every(
+      (player) => player.sourceProjectedPoints === undefined,
+    ),
+  );
+});
+
 test("audits modeled settings and flags unsupported projection coverage", () => {
   const baseline = auditLeagueSettings(demoLeague, demoPlayers);
   assert.deepEqual(auditSummary(baseline), {

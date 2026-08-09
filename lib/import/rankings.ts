@@ -288,12 +288,6 @@ export function buildRankingImport(
   if (map.rank === undefined) {
     result.errors.push("Map a rank column.");
   }
-  if (
-    options.source === "Fantasy Footballers UDK" &&
-    map.points === undefined
-  ) {
-    result.errors.push("Every UDK export must include its Points column.");
-  }
   if (result.errors.length > 0) return result;
 
   const seenPlayerIds = new Set<string>();
@@ -303,15 +297,6 @@ export function buildRankingImport(
     const sourceProjectedPoints = numeric(cell(row, map, "points"));
     if (!rank || rank < 1) {
       result.errors.push(`Row ${rowIndex + 2}: rank must be a positive number.`);
-      return;
-    }
-    if (
-      options.source === "Fantasy Footballers UDK" &&
-      sourceProjectedPoints === undefined
-    ) {
-      result.errors.push(
-        `Row ${rowIndex + 2}: projected points must be a number.`,
-      );
       return;
     }
     const sourcePosition = String(cell(row, map, "position") ?? "")
@@ -324,6 +309,17 @@ export function buildRankingImport(
       !(["QB", "RB", "WR", "TE", "K", "DST"] as string[]).includes(sourcePosition)
     ) {
       result.errors.push(`Row ${rowIndex + 2}: a supported position is required.`);
+      return;
+    }
+    if (
+      options.source === "Fantasy Footballers UDK" &&
+      sourcePosition !== "K" &&
+      sourcePosition !== "DST" &&
+      sourceProjectedPoints === undefined
+    ) {
+      result.errors.push(
+        `Row ${rowIndex + 2}: projected points must be a number for ${sourcePosition}.`,
+      );
       return;
     }
     const matched = matchPlayer(row, map, players);
