@@ -226,14 +226,26 @@ function buildDepthPlayers(): Player[] {
   );
 }
 
-export const starterPlayers: Player[] = [...featuredPlayers];
+export const starterPlayers: Player[] = featuredPlayers.map((player) => ({
+  ...player,
+  projectedStats: {},
+}));
+
+const starterPlayerIds = new Set(starterPlayers.map((player) => player.id));
+
+export function hasLegacyStarterProjection(player: Player): boolean {
+  return (
+    starterPlayerIds.has(player.id) &&
+    Object.keys(player.projectedStats).length > 0
+  );
+}
 
 export function isSyntheticDemoPlayer(player: Player): boolean {
   return player.id.startsWith("demo-");
 }
 
 export const demoPlayers: Player[] = [
-  ...starterPlayers,
+  ...featuredPlayers,
   ...buildDepthPlayers(),
 ];
 

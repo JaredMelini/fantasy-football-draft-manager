@@ -70,6 +70,18 @@ test("default local rankings exclude synthetic depth players", () => {
     state.players.some((player) => player.id.startsWith("demo-")),
     false,
   );
+  assert.equal(
+    state.players.some(
+      (player) => Object.keys(player.projectedStats).length > 0,
+    ),
+    false,
+  );
+  assert.equal(
+    state.players.some(
+      (player) => player.sourceProjectedPoints !== undefined,
+    ),
+    false,
+  );
 });
 
 test("rejects unknown or incomplete package formats", () => {

@@ -32,6 +32,13 @@ test("calculates exact full-PPR fantasy points from raw projections", () => {
   );
 });
 
+test("uses an imported UDK point total instead of legacy stat projections", () => {
+  const bijan = demoPlayers.find((player) => player.id === "bijan")!;
+  const imported = { ...bijan, sourceProjectedPoints: 287.6 };
+
+  assert.equal(calculateFantasyPoints(imported, demoLeague.scoringRules), 287.6);
+});
+
 test("calculates Yahoo big-play and DST categories independently", () => {
   const template = demoPlayers[0];
   const player = {

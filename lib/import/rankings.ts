@@ -1,6 +1,6 @@
 import type { Player, PlayerPosition } from "../domain/types";
 
-export type RankingField = "player" | "rank" | "team" | "position" | "tier" | "adp" | "risk" | "upside" | "notes" | "externalId";
+export type RankingField = "player" | "rank" | "team" | "position" | "tier" | "adp" | "points" | "risk" | "upside" | "notes" | "externalId";
 
 export type RankingColumnMap = Partial<Record<RankingField, number>>;
 
@@ -18,6 +18,7 @@ export interface RankingImportUpdate {
   tier?: number;
   adp?: number;
   sourceAdp?: string;
+  sourceProjectedPoints?: number;
   risk?: number;
   upside?: number;
   source?: string;
@@ -42,6 +43,7 @@ export interface RankingReviewRow {
   rank: number;
   tier?: number;
   adp?: number;
+  sourceProjectedPoints?: number;
   risk?: number;
   upside?: number;
   notes?: string;
@@ -64,6 +66,7 @@ const aliases: Record<RankingField, string[]> = {
   position: ["position", "pos"],
   tier: ["tier", "group"],
   adp: ["adp", "average draft position", "avg pick"],
+  points: ["points", "projected points", "fantasy points", "fpts", "pts"],
   risk: ["risk", "risk rating"],
   upside: ["upside", "upside rating"],
   notes: ["notes", "note", "comments"],
@@ -285,14 +288,30 @@ export function buildRankingImport(
   if (map.rank === undefined) {
     result.errors.push("Map a rank column.");
   }
+  if (
+    options.source === "Fantasy Footballers UDK" &&
+    map.points === undefined
+  ) {
+    result.errors.push("Every UDK export must include its Points column.");
+  }
   if (result.errors.length > 0) return result;
 
   const seenPlayerIds = new Set<string>();
   table.rows.forEach((row, rowIndex) => {
     const sourceName = String(cell(row, map, "player") ?? `Row ${rowIndex + 2}`).trim();
     const rank = numeric(cell(row, map, "rank"));
+    const sourceProjectedPoints = numeric(cell(row, map, "points"));
     if (!rank || rank < 1) {
       result.errors.push(`Row ${rowIndex + 2}: rank must be a positive number.`);
+      return;
+    }
+    if (
+      options.source === "Fantasy Footballers UDK" &&
+      sourceProjectedPoints === undefined
+    ) {
+      result.errors.push(
+        `Row ${rowIndex + 2}: projected points must be a number.`,
+      );
       return;
     }
     const sourcePosition = String(cell(row, map, "position") ?? "")
@@ -320,6 +339,7 @@ export function buildRankingImport(
         rank,
         tier: numeric(cell(row, map, "tier")),
         adp: numeric(cell(row, map, "adp")),
+        sourceProjectedPoints,
         risk: numeric(cell(row, map, "risk")),
         upside: numeric(cell(row, map, "upside")),
         notes: String(cell(row, map, "notes") ?? "").trim() || undefined,
@@ -350,6 +370,7 @@ export function buildRankingImport(
         rank,
         tier: numeric(cell(row, map, "tier")),
         adp: numeric(cell(row, map, "adp")),
+        sourceProjectedPoints,
         risk: numeric(cell(row, map, "risk")),
         upside: numeric(cell(row, map, "upside")),
         notes: String(cell(row, map, "notes") ?? "").trim() || undefined,
@@ -375,6 +396,7 @@ export function buildRankingImport(
         options.mode === "position"
           ? String(cell(row, map, "adp") ?? "").trim() || undefined
           : undefined,
+      sourceProjectedPoints,
       risk: numeric(cell(row, map, "risk")),
       upside: numeric(cell(row, map, "upside")),
       source: options.source,
@@ -404,6 +426,7 @@ export function rankingUpdateFromReview(
       options.mode === "position" && row.adp !== undefined
         ? String(row.adp)
         : undefined,
+    sourceProjectedPoints: row.sourceProjectedPoints,
     risk: row.risk,
     upside: row.upside,
     source: options.source,
@@ -437,6 +460,12 @@ export function applyRankingImport(
         upside: update.upside === undefined ? player.upside : Number(Math.min(1, Math.max(0, update.upside / 10)).toFixed(2)),
         rankingSource: update.source ?? player.rankingSource,
         sourceAdp: update.sourceAdp ?? player.sourceAdp,
+        sourceProjectedPoints:
+          update.sourceProjectedPoints ?? player.sourceProjectedPoints,
+        projectedStats:
+          update.source === "Fantasy Footballers UDK"
+            ? {}
+            : player.projectedStats,
         notes: update.notes ?? player.notes,
       };
     }
@@ -453,6 +482,8 @@ export function applyRankingImport(
         update.upside === undefined
           ? player.upside
           : Number(Math.min(1, Math.max(0, update.upside / 10)).toFixed(2)),
+      sourceProjectedPoints:
+        update.sourceProjectedPoints ?? player.sourceProjectedPoints,
       notes: update.notes ?? player.notes,
     };
   });
@@ -501,7 +532,6 @@ export function buildUdkRankingImport(
       const tier = numeric(cell(row, map, "tier")) ?? 1;
       const risk = numeric(cell(row, map, "risk"));
       const upside = numeric(cell(row, map, "upside"));
-      const pointsIndex = table.headers.findIndex((header) => normalize(header) === "points");
       const byeIndex = table.headers.findIndex((header) => normalize(header) === "bye week");
       const sourceAdp = String(cell(row, map, "adp") ?? "").trim() || undefined;
       const fallbackAdp = sourceAdp?.match(/^(\d+)\.(\d{1,2})$/);
@@ -523,7 +553,7 @@ export function buildUdkRankingImport(
         positionTiers: { [position]: tier },
         rankingSource: "Fantasy Footballers UDK",
         sourceAdp,
-        sourceProjectedPoints: numeric(row[pointsIndex]),
+        sourceProjectedPoints: numeric(cell(row, map, "points")),
         projectedStats: {},
       });
     });

@@ -20,7 +20,6 @@ import {
 } from "@/lib/domain/candidate-rollout";
 import { recommendPlayers } from "@/lib/domain/recommendation";
 import { assignRoster } from "@/lib/domain/roster";
-import { calculateFantasyPoints } from "@/lib/domain/scoring";
 import {
   getMarketAdp,
   getPositionRank,
@@ -52,6 +51,12 @@ import { Textarea } from "@/components/ui/textarea";
 
 function formatPoints(value: number): string {
   return value.toFixed(1);
+}
+
+function formatPlayerPoints(player: Player): string {
+  return player.sourceProjectedPoints === undefined
+    ? "—"
+    : formatPoints(player.sourceProjectedPoints);
 }
 
 function formatSignedScore(value: number): string {
@@ -263,11 +268,14 @@ export function DraftRoom({
             getPositionRank(b, players, primaryPosition(b));
 
           if (boardSort === "projection") {
-            return (
-              (calculateFantasyPoints(a, league.scoringRules) -
-                calculateFantasyPoints(b, league.scoringRules)) *
-                direction || positionRankDifference
-            );
+            const left = a.sourceProjectedPoints;
+            const right = b.sourceProjectedPoints;
+            if (left === undefined && right === undefined) {
+              return positionRankDifference;
+            }
+            if (left === undefined) return 1;
+            if (right === undefined) return -1;
+            return (left - right) * direction || positionRankDifference;
           }
 
           if (boardSort === "adp") {
@@ -289,7 +297,6 @@ export function DraftRoom({
       boardSortDirection,
       deferredSearch,
       draftedIds,
-      league.scoringRules,
       league.teamCount,
       players,
       position,
@@ -538,7 +545,7 @@ export function DraftRoom({
                   <option value="upside">Chase upside</option>
                 </select>
               </label>
-              <div className="recommendation-summary"><strong>{formatPoints(selected.breakdown.projectedPoints)}</strong><span>projected league points</span></div>
+              <div className="recommendation-summary"><strong>{formatPlayerPoints(selected.player)}</strong><span>{selected.player.sourceProjectedPoints === undefined ? "UDK points not imported" : "UDK projected points"}</span></div>
               <ul className="reason-list">
                 {selected.explanation.map((reason) => <li key={reason}>{reason}</li>)}
               </ul>
@@ -648,7 +655,7 @@ export function DraftRoom({
                           <span className="player-meta"><b className={`position ${player.positions[0].toLowerCase()}`}>{player.positions[0]}</b>{player.nflTeam} · Tier {getPositionTier(player)}</span>
                         </button>
                       </td>
-                      <td>{formatPoints(calculateFantasyPoints(player, league.scoringRules))}</td>
+                      <td>{formatPlayerPoints(player)}</td>
                       <td>{player.sourceAdp ?? player.adp.toFixed(1)}</td>
                       <td>
                         <Button size="sm" className="h-8 px-3 text-xs" onClick={() => logPick(player.id)} aria-label={`Log ${player.name} for ${currentTeam.name}`}>{currentTeam.isUser ? "Draft" : "Log"}</Button>
@@ -674,7 +681,7 @@ export function DraftRoom({
                 <div className="roster-player" key={slot.id}>
                   <span className={`position ${assigned.player.positions[0].toLowerCase()}`}>{slot.label}</span>
                   <div><strong>{assigned.player.name}</strong><small>{assigned.player.nflTeam} · Bye {assigned.player.byeWeek}</small></div>
-                  <b>{formatPoints(calculateFantasyPoints(assigned.player, league.scoringRules))}</b>
+                  <b>{formatPlayerPoints(assigned.player)}</b>
                 </div>
               ) : (
                 <div className="empty-slot" key={slot.id}><span>{slot.label}</span><small>Open starter slot</small></div>
@@ -684,7 +691,7 @@ export function DraftRoom({
               <div className="roster-player bench-player" key={player.id}>
                 <span className="position">BN</span>
                 <div><strong>{player.name}</strong><small>{player.nflTeam} · {player.positions.join("/")}</small></div>
-                <b>{formatPoints(calculateFantasyPoints(player, league.scoringRules))}</b>
+                <b>{formatPlayerPoints(player)}</b>
               </div>
             ))}
           </div>

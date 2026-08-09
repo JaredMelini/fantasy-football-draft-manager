@@ -5,7 +5,10 @@ import {
   createDefaultOfflinePackage,
   parseOfflinePackage,
 } from "./offline-package";
-import { isSyntheticDemoPlayer } from "./sample-data";
+import {
+  hasLegacyStarterProjection,
+  isSyntheticDemoPlayer,
+} from "./sample-data";
 
 const STORAGE_KEY = "fantasy-draft-manager:offline-package:v1";
 const listeners = new Set<() => void>();
@@ -31,7 +34,12 @@ function removeSyntheticDemoPlayers(
     value.players.filter(isSyntheticDemoPlayer).map((player) => player.id),
   );
   const leagueWasDemo = value.league.id === "demo-2026";
-  if (removedPlayerIds.size === 0 && !leagueWasDemo) return value;
+  const hasLegacyProjections = value.players.some(hasLegacyStarterProjection);
+  if (
+    removedPlayerIds.size === 0 &&
+    !leagueWasDemo &&
+    !hasLegacyProjections
+  ) return value;
   const removedEventIds = new Set(
     value.events
       .filter(
@@ -49,9 +57,13 @@ function removeSyntheticDemoPlayers(
           events: [],
         }
       : {}),
-    players: value.players.filter(
-      (player) => !removedPlayerIds.has(player.id),
-    ),
+    players: value.players
+      .filter((player) => !removedPlayerIds.has(player.id))
+      .map((player) =>
+        hasLegacyStarterProjection(player)
+          ? { ...player, projectedStats: {} }
+          : player,
+      ),
     ...(!leagueWasDemo
       ? {
           events: value.events.filter((event) =>

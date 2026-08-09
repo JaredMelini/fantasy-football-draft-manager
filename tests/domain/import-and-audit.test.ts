@@ -125,6 +125,8 @@ test("imports UDK ranks and tiers as position-specific values", () => {
   assert.equal(bowers.risk, 0.25);
   assert.equal(bowers.upside, 0.98);
   assert.equal(bowers.sourceAdp, "3.04");
+  assert.equal(bowers.sourceProjectedPoints, 260.3);
+  assert.deepEqual(bowers.projectedStats, {});
   assert.equal(bowers.rankingSource, "Fantasy Footballers UDK");
   assert.equal(bowers.userRank, bowersBefore.userRank);
   assert.equal(bowers.adp, bowersBefore.adp);

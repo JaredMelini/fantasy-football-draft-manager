@@ -42,6 +42,7 @@ const mappingFields: Array<{ field: RankingField; label: string; required?: bool
   { field: "position", label: "Position" },
   { field: "tier", label: "Tier" },
   { field: "adp", label: "ADP" },
+  { field: "points", label: "Projected points" },
   { field: "risk", label: "Risk" },
   { field: "upside", label: "Upside" },
   { field: "notes", label: "Notes" },
@@ -56,6 +57,7 @@ type RankingSortKey =
   | "tier"
   | "risk"
   | "upside"
+  | "points"
   | "adp"
   | "notes";
 type SortDirection = "ascending" | "descending";
@@ -103,6 +105,7 @@ export function RankingsStudio({
       if (sortKey === "tier") return getPositionTier(player, activePosition);
       if (sortKey === "risk") return player.risk;
       if (sortKey === "upside") return player.upside;
+      if (sortKey === "points") return player.sourceProjectedPoints;
       if (sortKey === "adp") return getMarketAdp(player, 12);
       return undefined;
     };
@@ -343,7 +346,9 @@ export function RankingsStudio({
     }
     setSortKey(key);
     setSortDirection(
-      key === "risk" || key === "upside" ? "descending" : "ascending",
+      key === "risk" || key === "upside" || key === "points"
+        ? "descending"
+        : "ascending",
     );
   }
 
@@ -396,7 +401,7 @@ export function RankingsStudio({
           <div className="udk-import-card">
             <div>
               <strong>Fantasy Footballers UDK</strong>
-              <span>Position ranks + tiers + risk + upside</span>
+              <span>Position ranks + tiers + points + risk + upside</span>
             </div>
             <p>
               While logged in, open each position, choose More → Download CSV,
@@ -488,7 +493,7 @@ export function RankingsStudio({
                           <article className={`review-row ${ignored ? "ignored" : ""} ${conflict ? "conflict" : ""}`} key={row.id}>
                             <header>
                               <span className={`review-status ${row.status}`}>{row.status}</span>
-                              <small>CSV row {row.rowNumber} · rank {row.rank}{row.tier ? ` · tier ${row.tier}` : ""}</small>
+                              <small>CSV row {row.rowNumber} · rank {row.rank}{row.tier ? ` · tier ${row.tier}` : ""}{row.sourceProjectedPoints !== undefined ? ` · ${row.sourceProjectedPoints} points` : ""}</small>
                             </header>
                             <strong>{row.sourceName}</strong>
                             <p>{[row.sourceTeam, row.sourcePosition].filter(Boolean).join(" · ") || "No team or position supplied"}</p>
@@ -616,6 +621,7 @@ export function RankingsStudio({
                   {sortableHeader("tier", "Tier")}
                   {sortableHeader("risk", "Risk")}
                   {sortableHeader("upside", "Upside")}
+                  {sortableHeader("points", "UDK pts")}
                   {sortableHeader("adp", "Market ADP")}
                   {sortableHeader("notes", "Personal note")}
                 </tr>
@@ -634,7 +640,7 @@ export function RankingsStudio({
                   <Fragment key={player.id}>
                     {showTierDivider && (
                       <tr className={`tier-divider tier-color-${Math.min(tier, 8)}`}>
-                        <td colSpan={7}>
+                        <td colSpan={8}>
                           <span>Tier {tier}</span>
                           <small>{activePosition} rankings</small>
                         </td>
@@ -646,6 +652,7 @@ export function RankingsStudio({
                     <td><div className="tier-editor"><span className={`tier-chip tier-color-${Math.min(tier, 8)}`}>T{tier}</span><input className="number-editor" type="number" min="1" value={tier} aria-label={`${player.name} ${activePosition} tier`} onChange={(event) => updatePositionRanking(player, "tier", Number(event.target.value))} /></div></td>
                     <td>{player.risk === undefined ? "—" : (player.risk * 10).toFixed(1)}</td>
                     <td>{player.upside === undefined ? "—" : (player.upside * 10).toFixed(1)}</td>
+                    <td>{player.sourceProjectedPoints === undefined ? "—" : player.sourceProjectedPoints.toFixed(1)}</td>
                     <td><input className="number-editor adp-editor" type="number" min="1" step="0.1" value={player.adp} aria-label={`${player.name} ADP`} onChange={(event) => updatePlayer(player.id, { adp: Math.max(1, Number(event.target.value)) })} /></td>
                     <td><input className="note-editor" value={player.notes ?? ""} aria-label={`${player.name} note`} placeholder="Add your take…" onChange={(event) => updatePlayer(player.id, { notes: event.target.value })} /></td>
                   </tr>
