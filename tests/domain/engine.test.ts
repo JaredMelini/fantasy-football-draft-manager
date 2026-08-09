@@ -280,7 +280,7 @@ test("completed-roster rollouts produce deterministic comparison lenses", () => 
   assert.deepEqual(first, second);
   assert.deepEqual(
     first.lenses.map(({ key }) => key),
-    ["best", "safe", "upside", "pivot"],
+    ["roster", "safe", "upside", "pivot"],
   );
   assert.equal(first.summaries.length, 8);
   assert.ok(first.summaries.every((summary) => summary.completionRate >= 0.8));

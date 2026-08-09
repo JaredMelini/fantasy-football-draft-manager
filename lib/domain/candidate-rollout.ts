@@ -14,7 +14,7 @@ import type {
   RiskTolerance,
 } from "./types";
 
-export type RecommendationLens = "best" | "safe" | "upside" | "pivot";
+export type RecommendationLens = "roster" | "safe" | "upside" | "pivot";
 
 export interface CandidateRolloutSummary {
   playerId: string;
@@ -365,8 +365,8 @@ export function analyzeCandidateRollouts(
     summaries,
     lenses: [
       {
-        key: "best",
-        label: "Best overall",
+        key: "roster",
+        label: "Best roster outcome",
         playerId: best.playerId,
         metric: `${best.averageRosterGrade} avg grade`,
         rationale: "Highest average completed-roster result",

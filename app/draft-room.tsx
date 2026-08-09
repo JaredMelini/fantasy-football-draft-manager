@@ -251,6 +251,25 @@ export function DraftRoom({
         (recommendation) => recommendation.player.id === selectedPlayerId,
       ) ?? best
     : best;
+  const isReviewingAlternative = Boolean(
+    selected && best && selected.player.id !== best.player.id,
+  );
+  const comparisonLenses = useMemo(
+    () =>
+      best
+        ? [
+            {
+              key: "best",
+              label: "Best overall",
+              playerId: best.player.id,
+              metric: `${best.breakdown.total} decision score`,
+              rationale: "Highest current decision score",
+            },
+            ...rolloutAnalysis.lenses,
+          ]
+        : rolloutAnalysis.lenses,
+    [best, rolloutAnalysis.lenses],
+  );
   const selectedRollout = selected
     ? rolloutAnalysis.summaries.find(
         (summary) => summary.playerId === selected.player.id,
@@ -398,22 +417,35 @@ export function DraftRoom({
       <div className="workspace-grid" id="draft-room">
         <section className="recommendation-panel panel">
           <div className="section-heading">
-            <div><p className="eyebrow">Best decision now</p><h2>{selected?.player.name ?? "Session complete"}</h2></div>
-            {selected && <span className="score-badge">{selected.breakdown.total}</span>}
+            <div><p className="eyebrow">{isReviewingAlternative ? "Reviewing alternative" : "Best decision now"}</p><h2>{selected?.player.name ?? "Session complete"}</h2></div>
+            <div className="recommendation-heading-actions">
+              {selected && <span className="score-badge">{selected.breakdown.total}</span>}
+              {isReviewingAlternative && (
+                <Button variant="ghost" size="sm" onClick={() => setSelectedPlayerId(null)}>
+                  Return to best decision
+                </Button>
+              )}
+            </div>
           </div>
 
-          {rolloutAnalysis.lenses.length > 0 && (
+          {comparisonLenses.length > 0 && (
             <div className="recommendation-lenses" aria-label="Recommendation comparison views">
-              {rolloutAnalysis.lenses.map((lens) => {
+              {comparisonLenses.map((lens) => {
                 const recommendation = recommendations.find(
                   ({ player }) => player.id === lens.playerId,
                 );
                 if (!recommendation) return null;
                 return (
                   <button
-                    className={selected?.player.id === lens.playerId ? "active" : ""}
+                    className={`${selected?.player.id === lens.playerId ? "active" : ""} ${lens.key === "best" ? "primary-lens" : ""}`}
                     key={lens.key}
-                    onClick={() => setSelectedPlayerId(lens.playerId)}
+                    onClick={() =>
+                      setSelectedPlayerId(
+                        lens.playerId === best?.player.id
+                          ? null
+                          : lens.playerId,
+                      )
+                    }
                     type="button"
                   >
                     <span>{lens.label}</span>

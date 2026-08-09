@@ -2805,6 +2805,29 @@ body {
   border-color: rgba(122, 162, 255, 0.38);
 }
 
+.recommendation-lenses .primary-lens {
+  background: rgba(67, 215, 199, 0.06);
+  border-color: rgba(67, 215, 199, 0.28);
+  grid-column: 1 / -1;
+}
+
+.recommendation-lenses .primary-lens span {
+  color: #72e5d8;
+}
+
+.recommendation-heading-actions {
+  align-items: flex-end;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.recommendation-heading-actions button {
+  height: auto;
+  min-height: 28px;
+  white-space: normal;
+}
+
 .recommendation-lenses span,
 .recommendation-lenses small {
   color: var(--muted-foreground);
