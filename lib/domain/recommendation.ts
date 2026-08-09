@@ -15,6 +15,10 @@ import {
   getMarketAdp,
   primaryPosition,
 } from "./rankings";
+import {
+  applyEndgameRosterPlan,
+  getEndgameRosterPlan,
+} from "./endgame";
 import { assessCandidateRosterFit } from "./roster";
 import type {
   DraftPick,
@@ -562,7 +566,7 @@ export function recommendPlayers({
       };
     });
 
-  return applyPersonalRankingGuardrails(
+  const ordered = applyPersonalRankingGuardrails(
     scoredRecommendations,
     candidates,
     players,
@@ -572,6 +576,29 @@ export function recommendPlayers({
       (a, b) =>
         b.breakdown.total - a.breakdown.total ||
         getPositionRank(a.player, players) - getPositionRank(b.player, players),
+    );
+  const endgamePlan = getEndgameRosterPlan(userRoster, league);
+  const eligiblePlayerIds = new Set(
+    applyEndgameRosterPlan(
+      ordered.map((recommendation) => recommendation.player),
+      userRoster,
+      league,
+    ).map((player) => player.id),
+  );
+  const endgameReason =
+    endgamePlan.mode === "force"
+      ? `Endgame roster plan: ${endgamePlan.remainingPicks} pick${endgamePlan.remainingPicks === 1 ? " remains" : "s remain"}, reserved for missing ${endgamePlan.missingPositions.join(" and ")}`
+      : null;
+
+  return ordered
+    .filter((recommendation) => eligiblePlayerIds.has(recommendation.player.id))
+    .map((recommendation) =>
+      endgameReason
+        ? {
+            ...recommendation,
+            explanation: [endgameReason, ...recommendation.explanation],
+          }
+        : recommendation,
     )
     .slice(0, limit);
 }

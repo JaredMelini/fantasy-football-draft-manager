@@ -1,4 +1,5 @@
 import { draftRosterSize, teamForOverallPick } from "./draft";
+import { applyEndgameRosterPlan } from "./endgame";
 import { assessCandidateRosterFit, assignRoster } from "./roster";
 import {
   calculateFantasyPoints,
@@ -267,8 +268,13 @@ function summarizeCandidate(
     const strategy = strategies[run % strategies.length];
 
     for (const overall of userPicks) {
-      const pool = input.players.filter(
+      const availablePool = input.players.filter(
         (player) => !selectedIds.has(player.id) && !player.excluded,
+      );
+      const pool = applyEndgameRosterPlan(
+        availablePool,
+        roster,
+        input.league,
       );
       const spread = Math.max(4, input.league.teamCount / 2);
       const survivors = pool.filter((player) => {

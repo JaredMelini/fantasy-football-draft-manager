@@ -127,6 +127,114 @@ test("does not recommend an immediate second tight end over open starter needs",
   );
 });
 
+test("reserves the final two roster picks for defense and kicker", () => {
+  const template = demoPlayers.find((player) => player.id === "bijan")!;
+  const kicker = {
+    ...template,
+    id: "kicker-test",
+    name: "Top Kicker",
+    positions: ["K" as const],
+    positionRanks: { K: 1 },
+    positionTiers: { K: 1 },
+    sourceProjectedPoints: undefined,
+    projectedStats: {},
+  };
+  const defense = {
+    ...template,
+    id: "defense-test",
+    name: "Top Defense",
+    positions: ["DST" as const],
+    positionRanks: { DST: 1 },
+    positionTiers: { DST: 1 },
+    sourceProjectedPoints: undefined,
+    projectedStats: {},
+  };
+  const players = [...demoPlayers, kicker, defense];
+  const teams = buildDemoTeams(yahooLeague.teamCount, 1);
+  const rosterBeforeFinalThree = demoPlayers.slice(0, 12);
+  const earlyPicks = rosterBeforeFinalThree.map((player, index) => ({
+    overall: index + 1,
+    round: index + 1,
+    teamId: "user",
+    playerId: player.id,
+  }));
+  const beforeFinalTwo = recommendPlayers({
+    players,
+    league: yahooLeague,
+    picks: earlyPicks,
+    userRoster: rosterBeforeFinalThree,
+    currentOverall: 97,
+    picksUntilNextTurn: 15,
+    teams,
+    seed: "endgame-before-window",
+    limit: players.length,
+  });
+
+  assert.ok(
+    beforeFinalTwo.every(
+      ({ player }) => !player.positions.includes("K") && !player.positions.includes("DST"),
+    ),
+  );
+
+  const rosterWithTwoPicksLeft = [...rosterBeforeFinalThree, demoPlayers[12]];
+  const twoPickPicks = [
+    ...earlyPicks,
+    {
+      overall: 98,
+      round: 13,
+      teamId: "user",
+      playerId: demoPlayers[12].id,
+    },
+  ];
+  const finalTwo = recommendPlayers({
+    players,
+    league: yahooLeague,
+    picks: twoPickPicks,
+    userRoster: rosterWithTwoPicksLeft,
+    currentOverall: 105,
+    picksUntilNextTurn: 15,
+    teams,
+    seed: "endgame-final-two",
+    limit: players.length,
+  });
+
+  assert.deepEqual(
+    new Set(finalTwo.map(({ player }) => player.positions[0])),
+    new Set(["K", "DST"]),
+  );
+  assert.ok(
+    finalTwo.every(({ explanation }) =>
+      explanation.some((reason) => reason.includes("Endgame roster plan")),
+    ),
+  );
+
+  const selectedSpecialist = finalTwo[0].player;
+  const lastPick = recommendPlayers({
+    players,
+    league: yahooLeague,
+    picks: [
+      ...twoPickPicks,
+      {
+        overall: 105,
+        round: 14,
+        teamId: "user",
+        playerId: selectedSpecialist.id,
+      },
+    ],
+    userRoster: [...rosterWithTwoPicksLeft, selectedSpecialist],
+    currentOverall: 120,
+    picksUntilNextTurn: 0,
+    teams,
+    seed: "endgame-last-pick",
+    limit: players.length,
+  });
+  const stillMissing = selectedSpecialist.positions.includes("K") ? "DST" : "K";
+
+  assert.ok(
+    lastPick.every(({ player }) => player.positions.includes(stillMissing)),
+  );
+});
+
 test("personal position rank controls same-position order unless a major exception exists", () => {
   const template = demoPlayers.find((player) => player.id === "bijan")!;
   const kyren = {

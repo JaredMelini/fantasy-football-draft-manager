@@ -425,3 +425,4 @@ Official references: [Yahoo Fantasy API documentation](https://sports.yahoo.com/
 - [x] Available-player board supports reversible projected-points and normalized-ADP sorting while keeping Decision Engine order as the default.
 - [x] UDK Points imports replace legacy built-in projections for matched and newly created players and become the Decision Engine's authoritative point totals.
 - [x] UDK kicker and D/ST exports import without a Points column and retain position-rank and tier-based decision signals.
+- [x] Endgame roster plan defers K and D/ST until the final two team selections, then guarantees both required positions when eligible players remain available.
