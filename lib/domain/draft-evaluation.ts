@@ -1,7 +1,7 @@
 import { playerIdsForTeam } from "./draft";
 import { replayDraftEvents } from "./draft-session";
-import { assignRoster } from "./roster";
-import { calculateFantasyPoints } from "./scoring";
+import { assignOptimalRoster } from "./roster";
+import { calculateFantasyPoints, estimateLeagueReplacementLevels } from "./scoring";
 import type { DraftEvent, LeagueSettings, Player } from "./types";
 
 export interface DraftEvaluation {
@@ -30,7 +30,11 @@ export function evaluateUserDraft(input: {
   const roster = playerIds
     .map((playerId) => input.players.find((player) => player.id === playerId))
     .filter((player): player is Player => Boolean(player));
-  const assignment = assignRoster(roster, input.league.rosterSlots);
+  const assignment = assignOptimalRoster(
+    roster,
+    input.league.rosterSlots,
+    (player) => calculateFantasyPoints(player, input.league.scoringRules),
+  );
   const userEvents = replayed.activePickEvents.filter(
     (event) => event.pick.teamId === input.userTeamId,
   );
@@ -62,11 +66,28 @@ export function evaluateUserDraft(input: {
     input.league.rosterSlots.length === 0
       ? 0
       : assignment.starters.length / input.league.rosterSlots.length;
-  const adherenceRate =
-    userEvents.length === 0 ? 0 : recommendationMatches / userEvents.length;
-  const valueScore = Math.max(-10, Math.min(10, averageValueVsAdp));
+  const levels = estimateLeagueReplacementLevels(input.players, input.league);
+  const starterValue = assignment.starters.reduce((total, starter) => {
+    const points = calculateFantasyPoints(starter.player, input.league.scoringRules);
+    const baseline = Math.min(
+      ...starter.player.positions.map((position) => levels.waiver[position]),
+    );
+    return total + Math.max(0, points - baseline);
+  }, 0);
+  const benchOptionValue = assignment.bench.reduce((total, player) => {
+    const points = calculateFantasyPoints(player, input.league.scoringRules);
+    const baseline = Math.min(...player.positions.map((position) => levels.waiver[position]));
+    return total + Math.max(0, points - baseline) * (0.08 + player.risk * 0.06);
+  }, 0);
+  const strengthPerStarter = starterValue / Math.max(1, input.league.rosterSlots.length);
   const score = Math.round(
-    Math.max(0, Math.min(100, 45 + fillRate * 40 + adherenceRate * 10 + valueScore / 2)),
+    Math.max(
+      0,
+      Math.min(
+        100,
+        25 + fillRate * 35 + strengthPerStarter * 0.55 + benchOptionValue * 0.22,
+      ),
+    ),
   );
 
   return {

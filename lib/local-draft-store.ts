@@ -11,7 +11,8 @@ import {
   isSyntheticDemoPlayer,
 } from "./sample-data";
 
-const STORAGE_KEY = "fantasy-draft-manager:offline-package:v1";
+const STORAGE_KEY = "fantasy-draft-manager:offline-package:v2";
+const LEGACY_STORAGE_KEY = "fantasy-draft-manager:offline-package:v1";
 const listeners = new Set<() => void>();
 let cachedRaw: string | null | undefined;
 let cachedValue: OfflineDraftPackage | null = null;
@@ -87,7 +88,9 @@ function removeSyntheticDemoPlayers(
 function readStoredPackage(): OfflineDraftPackage | null {
   if (typeof window === "undefined") return null;
   if (pendingValue) return cachedValue;
-  const raw = window.localStorage.getItem(STORAGE_KEY);
+  const currentRaw = window.localStorage.getItem(STORAGE_KEY);
+  const legacyRaw = currentRaw ? null : window.localStorage.getItem(LEGACY_STORAGE_KEY);
+  const raw = currentRaw ?? legacyRaw;
   if (raw === cachedRaw) return cachedValue;
   cachedRaw = raw;
   if (!raw) {
@@ -96,6 +99,9 @@ function readStoredPackage(): OfflineDraftPackage | null {
   }
   try {
     cachedValue = removeSyntheticDemoPlayers(parseOfflinePackage(raw));
+    if (legacyRaw) {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(cachedValue));
+    }
   } catch {
     cachedValue = null;
   }
@@ -141,6 +147,7 @@ export function saveLocalDraftSnapshot(value: OfflineDraftPackage): void {
 export function clearLocalDraftSnapshot(): void {
   if (pendingWriteTimer) window.clearTimeout(pendingWriteTimer);
   window.localStorage.removeItem(STORAGE_KEY);
+  window.localStorage.removeItem(LEGACY_STORAGE_KEY);
   cachedRaw = null;
   cachedValue = null;
   pendingValue = null;

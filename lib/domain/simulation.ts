@@ -8,30 +8,19 @@ import {
 import { createPickEvent, replayDraftEvents } from "./draft-session";
 import { recommendPlayers } from "./recommendation";
 import { assignRoster } from "./roster";
-import { getMarketAdp, getPositionRank, getPositionRankValue } from "./rankings";
+import {
+  buildOpponentProfiles,
+  chooseModeledOpponentPlayer,
+  updateOpponentProfiles,
+} from "./opponent-model";
 import type {
   DraftEvent,
   DraftTeam,
   LeagueSettings,
   OpponentStrategy,
   Player,
+  OpponentProfile,
 } from "./types";
-
-function hash(input: string): number {
-  let value = 2166136261;
-  for (let index = 0; index < input.length; index += 1) {
-    value ^= input.charCodeAt(index);
-    value = Math.imul(value, 16777619);
-  }
-  return value >>> 0;
-}
-
-function deterministicNoise(seed: string, key: string): number {
-  let value = hash(`${seed}:${key}`) + 0x6d2b79f5;
-  value = Math.imul(value ^ (value >>> 15), value | 1);
-  value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
-  return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
-}
 
 export function chooseOpponentPlayer(input: {
   available: Player[];
@@ -43,52 +32,25 @@ export function chooseOpponentPlayer(input: {
   strategy: OpponentStrategy;
 }): Player | undefined {
   const { available, roster, league, overall, seed, teamId, strategy } = input;
-  const filledBefore = assignRoster(roster, league.rosterSlots).starters.length;
-  const needWeight =
-    strategy === "needs-first" ? 70 : strategy === "balanced" ? 34 : 8;
-  const marketWeight = strategy === "best-available" ? 1.35 : 1;
-  const rankWeight = strategy === "best-available" ? 0.15 : 0.35;
-
-  return [...available]
-    .map((player) => {
-      const filledAfter = assignRoster(
-        [...roster, player],
-        league.rosterSlots,
-      ).starters.length;
-      const fillsNeed = filledAfter > filledBefore ? 1 : 0;
-      const primaryPosition = player.positions[0];
-      const dedicatedSlots = league.rosterSlots.filter(
-        (slot) =>
-          slot.eligiblePositions.length === 1 &&
-          slot.eligiblePositions[0] === primaryPosition,
-      ).length;
-      const rosteredAtPosition = roster.filter((teammate) =>
-        teammate.positions.includes(primaryPosition),
-      ).length;
-      const positionOverload = Math.max(
-        0,
-        rosteredAtPosition - dedicatedSlots + 1,
-      );
-      const marketAdp = getMarketAdp(player, league.teamCount);
-      const marketValue = 110 - Math.abs(marketAdp - overall) - marketAdp * 0.2;
-      const personalValue = getPositionRankValue(player, available);
-      const jitter = deterministicNoise(seed, `${overall}:${teamId}:${player.id}`) * 7;
-      return {
-        player,
-        score:
-          marketValue * marketWeight +
-          personalValue * rankWeight +
-          fillsNeed * needWeight +
-          jitter -
-          positionOverload * 24,
-      };
-    })
-    .sort(
-      (a, b) =>
-        b.score - a.score ||
-        getPositionRank(a.player, available) -
-          getPositionRank(b.player, available),
-    )[0]?.player;
+  const [base] = buildOpponentProfiles(
+    [{ id: teamId, name: teamId, draftSlot: 1 }],
+    seed,
+  );
+  if (!base) return available[0];
+  const profile = {
+    ...base,
+    adpWeight: strategy === "best-available" ? base.adpWeight * 1.25 : base.adpWeight,
+    needWeight: strategy === "needs-first" ? base.needWeight * 1.7 :
+      strategy === "best-available" ? base.needWeight * 0.55 : base.needWeight,
+  };
+  return chooseModeledOpponentPlayer({
+    available,
+    roster,
+    league,
+    overall,
+    seed,
+    profile,
+  });
 }
 
 function appendSimulatedPick(input: {
@@ -99,6 +61,7 @@ function appendSimulatedPick(input: {
   seed: string;
   strategy: OpponentStrategy;
   autoPickUser: boolean;
+  opponentProfiles?: OpponentProfile[];
 }): DraftEvent[] {
   const replayed = replayDraftEvents(input.events);
   const picks = replayed.picks;
@@ -164,6 +127,12 @@ function appendSimulatedPick(input: {
       )?.player ?? recommendations[0]?.player;
     recommendedPlayerId = selected?.id;
   } else {
+    const profiles = updateOpponentProfiles(
+      buildOpponentProfiles(input.teams, input.seed, input.opponentProfiles),
+      picks,
+      input.players,
+    );
+    const modeledProfile = profiles.find((profile) => profile.teamId === team.id);
     selected = chooseOpponentPlayer({
       available,
       roster,
@@ -173,6 +142,29 @@ function appendSimulatedPick(input: {
       teamId: team.id,
       strategy: input.strategy,
     });
+    if (modeledProfile) {
+      const adjustedProfile = {
+        ...modeledProfile,
+        adpWeight:
+          input.strategy === "best-available"
+            ? modeledProfile.adpWeight * 1.25
+            : modeledProfile.adpWeight,
+        needWeight:
+          input.strategy === "needs-first"
+            ? modeledProfile.needWeight * 1.7
+            : input.strategy === "best-available"
+              ? modeledProfile.needWeight * 0.55
+              : modeledProfile.needWeight,
+      };
+      selected = chooseModeledOpponentPlayer({
+        available,
+        roster,
+        league: input.league,
+        overall,
+        seed: input.seed,
+        profile: adjustedProfile,
+      });
+    }
   }
   if (!selected) return input.events;
 
@@ -199,6 +191,7 @@ export function simulateNextPick(input: {
   players: Player[];
   seed: string;
   strategy: OpponentStrategy;
+  opponentProfiles?: OpponentProfile[];
 }): DraftEvent[] {
   return appendSimulatedPick({ ...input, autoPickUser: false });
 }
@@ -210,6 +203,7 @@ export function simulateUntilUserTurn(input: {
   players: Player[];
   seed: string;
   strategy: OpponentStrategy;
+  opponentProfiles?: OpponentProfile[];
 }): DraftEvent[] {
   let events = [...input.events];
   const safetyLimit = input.teams.length * 2;
@@ -237,6 +231,7 @@ export function simulateDraftToEnd(input: {
   seed: string;
   strategy: OpponentStrategy;
   maximumPicks?: number;
+  opponentProfiles?: OpponentProfile[];
 }): DraftEvent[] {
   let events = [...input.events];
   const maximumPicks = Math.min(

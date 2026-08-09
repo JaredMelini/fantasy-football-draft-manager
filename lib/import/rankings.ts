@@ -1,6 +1,6 @@
 import type { Player, PlayerPosition } from "../domain/types";
 
-export type RankingField = "player" | "rank" | "team" | "position" | "tier" | "adp" | "points" | "risk" | "upside" | "notes" | "externalId";
+export type RankingField = "player" | "rank" | "team" | "position" | "tier" | "adp" | "points" | "risk" | "upside" | "consistency" | "notes" | "externalId";
 
 export type RankingColumnMap = Partial<Record<RankingField, number>>;
 
@@ -21,6 +21,7 @@ export interface RankingImportUpdate {
   sourceProjectedPoints?: number;
   risk?: number;
   upside?: number;
+  consistency?: number;
   source?: string;
   notes?: string;
 }
@@ -46,6 +47,7 @@ export interface RankingReviewRow {
   sourceProjectedPoints?: number;
   risk?: number;
   upside?: number;
+  consistency?: number;
   notes?: string;
   suggestions: RankingReviewSuggestion[];
 }
@@ -69,6 +71,7 @@ const aliases: Record<RankingField, string[]> = {
   points: ["points", "projected points", "fantasy points", "fpts", "pts"],
   risk: ["risk", "risk rating"],
   upside: ["upside", "upside rating"],
+  consistency: ["consistency", "consistency rating"],
   notes: ["notes", "note", "comments"],
   externalId: ["yahoo id", "player id", "external id"],
 };
@@ -338,6 +341,7 @@ export function buildRankingImport(
         sourceProjectedPoints,
         risk: numeric(cell(row, map, "risk")),
         upside: numeric(cell(row, map, "upside")),
+        consistency: numeric(cell(row, map, "consistency")),
         notes: String(cell(row, map, "notes") ?? "").trim() || undefined,
         suggestions: suggestPlayers(row, map, players),
       });
@@ -369,6 +373,7 @@ export function buildRankingImport(
         sourceProjectedPoints,
         risk: numeric(cell(row, map, "risk")),
         upside: numeric(cell(row, map, "upside")),
+        consistency: numeric(cell(row, map, "consistency")),
         notes: String(cell(row, map, "notes") ?? "").trim() || undefined,
         suggestions: [
           matchedSuggestion,
@@ -395,6 +400,7 @@ export function buildRankingImport(
       sourceProjectedPoints,
       risk: numeric(cell(row, map, "risk")),
       upside: numeric(cell(row, map, "upside")),
+      consistency: numeric(cell(row, map, "consistency")),
       source: options.source,
       notes: String(cell(row, map, "notes") ?? "").trim() || undefined,
     });
@@ -425,6 +431,7 @@ export function rankingUpdateFromReview(
     sourceProjectedPoints: row.sourceProjectedPoints,
     risk: row.risk,
     upside: row.upside,
+    consistency: row.consistency,
     source: options.source,
     notes: row.notes,
   };
@@ -454,14 +461,20 @@ export function applyRankingImport(
             },
         risk: update.risk === undefined ? player.risk : Number(Math.min(1, Math.max(0, update.risk / 10)).toFixed(2)),
         upside: update.upside === undefined ? player.upside : Number(Math.min(1, Math.max(0, update.upside / 10)).toFixed(2)),
+        consistency: update.consistency === undefined ? player.consistency : Number(Math.min(1, Math.max(0, update.consistency / 10)).toFixed(2)),
         rankingSource: update.source ?? player.rankingSource,
         sourceAdp: update.sourceAdp ?? player.sourceAdp,
         sourceProjectedPoints:
           update.sourceProjectedPoints ?? player.sourceProjectedPoints,
-        projectedStats:
-          update.source === "Fantasy Footballers UDK"
-            ? {}
-            : player.projectedStats,
+        projectionProvenance: update.sourceProjectedPoints === undefined
+          ? player.projectionProvenance
+          : {
+              source: update.source ?? "Imported rankings",
+              importedAt: new Date().toISOString(),
+              mode: Object.keys(player.projectedStats).length > 0
+                ? "raw-league-scored"
+                : "source-total",
+            },
         notes: update.notes ?? player.notes,
       };
     }
@@ -478,8 +491,21 @@ export function applyRankingImport(
         update.upside === undefined
           ? player.upside
           : Number(Math.min(1, Math.max(0, update.upside / 10)).toFixed(2)),
+      consistency:
+        update.consistency === undefined
+          ? player.consistency
+          : Number(Math.min(1, Math.max(0, update.consistency / 10)).toFixed(2)),
       sourceProjectedPoints:
         update.sourceProjectedPoints ?? player.sourceProjectedPoints,
+      projectionProvenance: update.sourceProjectedPoints === undefined
+        ? player.projectionProvenance
+        : {
+            source: update.source ?? "Imported rankings",
+            importedAt: new Date().toISOString(),
+            mode: Object.keys(player.projectedStats).length > 0
+              ? "raw-league-scored"
+              : "source-total",
+          },
       notes: update.notes ?? player.notes,
     };
   });
@@ -528,6 +554,7 @@ export function buildUdkRankingImport(
       const tier = numeric(cell(row, map, "tier")) ?? 1;
       const risk = numeric(cell(row, map, "risk"));
       const upside = numeric(cell(row, map, "upside"));
+      const consistency = numeric(cell(row, map, "consistency"));
       const byeIndex = table.headers.findIndex((header) => normalize(header) === "bye week");
       const sourceAdp = String(cell(row, map, "adp") ?? "").trim() || undefined;
       const fallbackAdp = sourceAdp?.match(/^(\d+)\.(\d{1,2})$/);
@@ -545,11 +572,19 @@ export function buildUdkRankingImport(
         tier,
         risk: risk === undefined ? 0.5 : Number(Math.min(1, Math.max(0, risk / 10)).toFixed(2)),
         upside: upside === undefined ? 0.5 : Number(Math.min(1, Math.max(0, upside / 10)).toFixed(2)),
+        consistency: consistency === undefined ? 0.5 : Number(Math.min(1, Math.max(0, consistency / 10)).toFixed(2)),
         positionRanks: { [position]: rank },
         positionTiers: { [position]: tier },
         rankingSource: "Fantasy Footballers UDK",
         sourceAdp,
         sourceProjectedPoints: numeric(cell(row, map, "points")),
+        projectionProvenance: {
+          source: "Fantasy Footballers UDK",
+          importedAt: new Date().toISOString(),
+          mode: numeric(cell(row, map, "points")) === undefined
+            ? "rank-only"
+            : "source-total",
+        },
         projectedStats: {},
       });
     });

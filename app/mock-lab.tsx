@@ -14,6 +14,7 @@ import type {
   DraftEvent,
   LeagueSettings,
   OpponentStrategy,
+  OpponentProfile,
   Player,
 } from "@/lib/domain/types";
 import { buildDemoTeams } from "@/lib/sample-data";
@@ -26,6 +27,7 @@ interface MockLabProps {
   events: DraftEvent[];
   seed: string;
   strategy: OpponentStrategy;
+  opponentProfiles: OpponentProfile[];
   onEventsChange: (events: DraftEvent[]) => void;
   onSeedChange: (seed: string) => void;
   onStrategyChange: (strategy: OpponentStrategy) => void;
@@ -43,6 +45,7 @@ export function MockLab({
   events,
   seed,
   strategy,
+  opponentProfiles,
   onEventsChange,
   onSeedChange,
   onStrategyChange,
@@ -115,7 +118,7 @@ export function MockLab({
     }
     void onRunBusyTask("Simulating to your next pick", () => {
       onEventsChange(
-        simulateUntilUserTurn({ events, teams, league, players, seed, strategy }),
+        simulateUntilUserTurn({ events, teams, league, players, seed, strategy, opponentProfiles }),
       );
       setReplayPosition("live");
     });
@@ -124,7 +127,7 @@ export function MockLab({
   function finishMock() {
     void onRunBusyTask("Finishing the mock draft", () => {
       onEventsChange(
-        simulateDraftToEnd({ events, teams, league, players, seed, strategy }),
+        simulateDraftToEnd({ events, teams, league, players, seed, strategy, opponentProfiles }),
       );
       setReplayPosition("live");
     });
@@ -153,11 +156,11 @@ export function MockLab({
 
       <div className="mock-summary-grid">
         <section className="evaluation-card panel">
-          <div className="draft-grade"><span>Draft score</span><strong>{evaluation.score}</strong><small>/ 100</small></div>
+          <div className="draft-grade"><span>Roster strength</span><strong>{evaluation.score}</strong><small>/ 100</small></div>
           <div className="evaluation-metrics">
             <div><span>Starter projection</span><strong>{evaluation.starterProjectedPoints}</strong></div>
             <div><span>Open starter slots</span><strong>{evaluation.openStarterSlots}</strong></div>
-            <div><span>Recommendation match</span><strong>{evaluation.recommendationMatches}/{evaluation.userPicks}</strong></div>
+            <div><span>Decision trace only</span><strong>{evaluation.recommendationMatches}/{evaluation.userPicks}</strong></div>
             <div><span>Value vs. ADP</span><strong>{evaluation.averageValueVsAdp > 0 ? "+" : ""}{evaluation.averageValueVsAdp}</strong></div>
           </div>
         </section>

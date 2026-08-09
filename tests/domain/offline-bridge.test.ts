@@ -57,7 +57,7 @@ test("round-trips a complete portable offline package", () => {
   const original = packageForExport(createDefaultOfflinePackage());
   const parsed = parseOfflinePackage(JSON.stringify(original));
 
-  assert.equal(parsed.version, 1);
+  assert.equal(parsed.version, 2);
   assert.equal(parsed.league.name, original.league.name);
   assert.equal(parsed.players.length, original.players.length);
   assert.equal(parsed.events.length, original.events.length);
@@ -71,11 +71,22 @@ test("default local player board starts empty", () => {
 
 test("rejects unknown or incomplete package formats", () => {
   assert.throws(
-    () => parseOfflinePackage('{"version":2}'),
-    /Expected offline package version 1/,
+    () => parseOfflinePackage('{"version":3}'),
+    /Expected offline package version 2/,
   );
   assert.throws(
     () => parseOfflinePackage('{"version":1}'),
     /Package export date is missing/,
   );
+});
+
+test("migrates v1 packages with safe v4 defaults", () => {
+  const current = packageForExport(createDefaultOfflinePackage());
+  const legacy = { ...current, version: 1 } as Record<string, unknown>;
+  delete legacy.opponentProfiles;
+  delete legacy.dataSnapshots;
+  const parsed = parseOfflinePackage(JSON.stringify(legacy));
+  assert.equal(parsed.version, 2);
+  assert.deepEqual(parsed.opponentProfiles, []);
+  assert.deepEqual(parsed.dataSnapshots, []);
 });

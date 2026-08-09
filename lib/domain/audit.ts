@@ -1,4 +1,8 @@
-import { findUncoveredScoringStats } from "./scoring";
+import {
+  findUncoveredScoringStats,
+  projectionCoverageForPlayer,
+  projectionModeForPlayer,
+} from "./scoring";
 import type { LeagueSettings, Player } from "./types";
 
 export type AuditStatus = "modeled" | "warning" | "error";
@@ -120,6 +124,69 @@ export function auditLeagueSettings(
         : uncovered.length > 0
           ? `Missing projections for: ${uncovered.join(", ")}.`
           : `${league.scoringRules.length} scoring rules have projection coverage.`,
+  });
+
+  const duplicatePlayerIds = players.filter(
+    (player, index) => players.findIndex((candidate) => candidate.id === player.id) !== index,
+  );
+  const minimumPool = league.teamCount *
+    (league.rosterSlots.length + (league.benchSlots ?? 0));
+  items.push({
+    id: "player-pool",
+    label: "Player identity and pool",
+    status:
+      duplicatePlayerIds.length > 0 || players.length < minimumPool
+        ? "error"
+        : "modeled",
+    detail:
+      duplicatePlayerIds.length > 0
+        ? `${duplicatePlayerIds.length} duplicate player IDs must be resolved before simulation.`
+        : players.length < minimumPool
+          ? `${players.length} players cannot fill ${minimumPool} league roster spots.`
+          : `${players.length} uniquely identified players cover ${minimumPool} draft selections.`,
+  });
+
+  const rawPlayers = players.filter(
+    (player) => projectionModeForPlayer(player) === "raw-league-scored",
+  );
+  const sourceTotalPlayers = players.filter(
+    (player) => projectionModeForPlayer(player) === "source-total",
+  );
+  const incompleteRaw = rawPlayers.filter(
+    (player) => projectionCoverageForPlayer(player, league.scoringRules) < 0.6,
+  );
+  items.push({
+    id: "projection-provenance",
+    label: "Projection provenance",
+    status:
+      players.length === 0
+        ? "warning"
+        : incompleteRaw.length > 0
+          ? "warning"
+          : "modeled",
+    detail:
+      players.length === 0
+        ? "Import rankings and projections before drafting."
+        : `${rawPlayers.length} league-scored raw projections, ${sourceTotalPlayers.length} source totals, and ${players.length - rawPlayers.length - sourceTotalPlayers.length} rank-only players.${incompleteRaw.length > 0 ? ` ${incompleteRaw.length} raw rows have under 60% scoring-category coverage.` : ""}`,
+  });
+
+  const yahooPlayers = players.filter(
+    (player) => player.yahooAdpAll !== undefined || player.yahooAdpRecent !== undefined,
+  );
+  const staleYahooPlayers = yahooPlayers.filter((player) => {
+    const timestamp = player.yahooAdpUpdatedAt;
+    return !timestamp || Date.now() - Date.parse(timestamp) > 14 * 86_400_000;
+  });
+  items.push({
+    id: "yahoo-market",
+    label: "Yahoo opponent market",
+    status:
+      players.length === 0 || yahooPlayers.length / Math.max(1, players.length) < 0.7
+        ? "warning"
+        : staleYahooPlayers.length > yahooPlayers.length * 0.2
+          ? "warning"
+          : "modeled",
+    detail: `${yahooPlayers.length}/${players.length} players have Yahoo ADP; ${staleYahooPlayers.length} are older than 14 days or undated.`,
   });
 
   return items;

@@ -2,11 +2,14 @@ import type {
   DraftEvent,
   LeagueSettings,
   OpponentStrategy,
+  OpponentProfile,
   Player,
+  DataSnapshot,
 } from "./domain/types";
-import { starterPlayers, yahooLeague } from "./sample-data";
+import { buildDemoTeams, starterPlayers, yahooLeague } from "./sample-data";
+import { buildOpponentProfiles } from "./domain/opponent-model";
 
-export const OFFLINE_PACKAGE_VERSION = 1;
+export const OFFLINE_PACKAGE_VERSION = 2;
 
 export interface OfflineDraftPackage {
   version: typeof OFFLINE_PACKAGE_VERSION;
@@ -16,6 +19,8 @@ export interface OfflineDraftPackage {
   events: DraftEvent[];
   simulationSeed: string;
   opponentStrategy: OpponentStrategy;
+  opponentProfiles: OpponentProfile[];
+  dataSnapshots: DataSnapshot[];
 }
 
 function cloneLeague(league: LeagueSettings): LeagueSettings {
@@ -47,6 +52,11 @@ export function createDefaultOfflinePackage(): OfflineDraftPackage {
     events: [],
     simulationSeed: "sunday-night-2026",
     opponentStrategy: "balanced",
+    opponentProfiles: buildOpponentProfiles(
+      buildDemoTeams(yahooLeague.teamCount, yahooLeague.userDraftSlot ?? 1),
+      "sunday-night-2026",
+    ),
+    dataSnapshots: [],
   };
 }
 
@@ -64,6 +74,14 @@ function clonePackage(
         ? { ...event, pick: { ...event.pick } }
         : { ...event },
     ),
+    opponentProfiles: state.opponentProfiles.map((profile) => ({
+      ...profile,
+      positionBias: { ...profile.positionBias },
+    })),
+    dataSnapshots: state.dataSnapshots.map((snapshot) => ({
+      ...snapshot,
+      positions: [...snapshot.positions],
+    })),
   };
 }
 
@@ -129,7 +147,7 @@ export function parseOfflinePackage(text: string): OfflineDraftPackage {
   } catch {
     throw new Error("That file is not valid JSON.");
   }
-  if (!isRecord(value) || value.version !== OFFLINE_PACKAGE_VERSION) {
+  if (!isRecord(value) || ![1, OFFLINE_PACKAGE_VERSION].includes(Number(value.version))) {
     throw new Error(`Expected offline package version ${OFFLINE_PACKAGE_VERSION}.`);
   }
   if (typeof value.exportedAt !== "string") {
@@ -149,8 +167,44 @@ export function parseOfflinePackage(text: string): OfflineDraftPackage {
     throw new Error("Opponent strategy is invalid.");
   }
 
+  const migrated = {
+    ...value,
+    version: OFFLINE_PACKAGE_VERSION,
+    opponentProfiles: Array.isArray(value.opponentProfiles)
+      ? value.opponentProfiles
+      : [],
+    dataSnapshots: Array.isArray(value.dataSnapshots) ? value.dataSnapshots : [],
+  } as unknown as OfflineDraftPackage;
+
   return clonePackage(
-    value as unknown as OfflineDraftPackage,
+    migrated,
     value.exportedAt,
   );
+}
+
+export function snapshotForPlayers(
+  players: Player[],
+  kind: DataSnapshot["kind"],
+  source: string,
+): DataSnapshot {
+  const positions = [...new Set(players.flatMap((player) => player.positions))].sort();
+  const fingerprint = players
+    .map((player) => `${player.id}:${player.userRank}:${player.yahooAdpRecent ?? ""}:${player.yahooAdpAll ?? ""}`)
+    .sort()
+    .join("|");
+  let hash = 2166136261;
+  for (let index = 0; index < fingerprint.length; index += 1) {
+    hash ^= fingerprint.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  const importedAt = new Date().toISOString();
+  return {
+    id: `${kind}-${importedAt}-${(hash >>> 0).toString(16)}`,
+    kind,
+    source,
+    importedAt,
+    playerCount: players.length,
+    positions,
+    fingerprint: (hash >>> 0).toString(16),
+  };
 }

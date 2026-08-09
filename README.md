@@ -2,7 +2,7 @@
 
 Fantasy Football Draft Manager is a personal, non-commercial web application for league-specific Yahoo Fantasy Football draft recommendations.
 
-> **Project status:** Offline-first draft companion and Advanced Decision Engine complete; the fixed Yahoo league setup for league 595211 is loaded locally, while Yahoo API-access review remains pending.
+> **Project status:** Offline-first draft companion and Hybrid Decision Engine v4 complete; the fixed Yahoo league setup for league 595211 is loaded locally, while Yahoo API-access review remains pending.
 
 The interface uses a dark, high-contrast shadcn design system with responsive navigation and consistent controls across every workflow.
 
@@ -49,15 +49,15 @@ The application will not submit draft picks, change rosters, perform unattended 
 
 ## Availability
 
-The foundation, league-settings audit, position-based rankings workflow, event-sourced manual draft, internal Mock Lab, Offline Bridge, and Advanced Decision Engine are implemented. The editable local default is the eight-team Yahoo league `Trip`: its snake-draft schedule, 90-second clock, nine starters, six bench spots, one IR spot, and all 39 enabled scoring modifiers are persisted in the app. Decision Engine v3 makes risk-adjusted completed-roster outcomes the primary recommendation signal, blended with personal position ranks, roster guardrails, live replacement levels, opponent needs, positional runs, and wait probability. Best Overall, Best Roster Outcome, Safest, Upside, and Positional Pivot views explain the leading candidates.
+The foundation, league-settings audit, position-based rankings workflow, event-sourced manual draft, internal Mock Lab, Offline Bridge, and Hybrid Decision Engine v4 are implemented. The editable local default is the eight-team Yahoo league `Trip`: its snake-draft schedule, 90-second clock, nine starters, six bench spots, one IR spot, and all 39 enabled scoring modifiers are persisted in the app. Engine v4 runs paired, coherent full-draft worlds with persistent opponent archetypes, exact player removal, league-scored projection provenance, optimal weekly lineups, and playoff/title outcomes. UDK ranks, tiers, risk, upside, and consistency remain strong priors without acting as hard outcome vetoes. Best Overall, Best Roster Outcome, Safest, Upside, and Positional Pivot views explain the leading candidates.
 
-Yahoo is configured to randomize this league's draft order 30 minutes before the draft, so the user's draft slot is intentionally left pending and editable in League Setup. The settings audit also flags any scoring category that the current player projection data does not populate. Yahoo connectivity will be added behind the prepared provider adapter after API access and live-draft behavior are verified.
+Yahoo is configured to randomize this league's draft order 30 minutes before the draft, so live recommendations remain locked until the exact slot is entered in League Setup. While the slot is pending, the app precomputes an opening playbook for all eight positions. The settings audit also checks scoring coverage, projection provenance, player identity, board depth, and Yahoo-market freshness. Yahoo connectivity will be added behind the prepared provider adapter after API access and live-draft behavior are verified.
 
 ## Yahoo ADP import
 
 Rankings Studio includes a separate Yahoo opponent-ADP workflow. Copy the provided bookmarklet into a browser bookmark, open Yahoo's Draft Analysis page while signed in, choose a position, and click the bookmark to download a local CSV. Repeat for QB, RB, WR, TE, K, and DEF, then select all exports together in Rankings Studio. Unmatched names must be reviewed or explicitly ignored before applying the import.
 
-Opponent simulations prefer Yahoo Last 7 Days ADP, fall back to Yahoo All Drafts ADP, then UDK ADP, and finally the manually editable fallback. Yahoo imports never modify UDK ranks, tiers, projections, risk, upside, or notes.
+Opponent simulations shrink Yahoo Last 7 Days ADP toward All Drafts ADP based on freshness and percent-drafted support, then fall back to UDK ADP and the manual value. Yahoo overall rank acts as a secondary autopick signal. Yahoo imports never modify UDK ranks, tiers, projections, risk, upside, consistency, or notes.
 
 ## Project plan
 

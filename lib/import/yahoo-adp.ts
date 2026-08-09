@@ -349,6 +349,14 @@ export function applyYahooAdpImport(
       yahooPercentDrafted: update.percentDrafted ?? player.yahooPercentDrafted,
       yahooOverallRank: update.overallRank ?? player.yahooOverallRank,
       yahooAdpUpdatedAt: update.importedAt,
+      yahooAdpAllUpdatedAt:
+        update.allDraftsAdp === undefined
+          ? player.yahooAdpAllUpdatedAt
+          : update.importedAt,
+      yahooAdpRecentUpdatedAt:
+        update.recentAdp === undefined
+          ? player.yahooAdpRecentUpdatedAt
+          : update.importedAt,
       externalIds: update.yahooPlayerId
         ? { ...player.externalIds, yahoo: update.yahooPlayerId }
         : player.externalIds,
@@ -364,6 +372,8 @@ export function clearYahooAdp(players: Player[]): Player[] {
     delete cleared.yahooPercentDrafted;
     delete cleared.yahooOverallRank;
     delete cleared.yahooAdpUpdatedAt;
+    delete cleared.yahooAdpAllUpdatedAt;
+    delete cleared.yahooAdpRecentUpdatedAt;
     return cleared;
   });
 }

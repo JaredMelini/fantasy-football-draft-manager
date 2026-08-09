@@ -1,19 +1,10 @@
-import { draftRosterSize, teamForOverallPick } from "./draft";
-import {
-  applyRosterCompletionPlan,
-  getRosterCompletionPlan,
-} from "./endgame";
-import { assessCandidateRosterFit, assignRoster } from "./roster";
+import { assignOptimalRoster } from "./roster";
+import { simulateDraftWorld } from "./draft-simulator";
 import {
   calculateFantasyPoints,
   estimateDynamicReplacementBaselines,
 } from "./scoring";
-import {
-  getMarketAdp,
-  getPositionRank,
-  getPositionRankValue,
-  primaryPosition,
-} from "./rankings";
+import { primaryPosition } from "./rankings";
 import type {
   DraftPick,
   DraftTeam,
@@ -21,6 +12,7 @@ import type {
   Player,
   PlayerRecommendation,
   RiskTolerance,
+  OpponentProfile,
 } from "./types";
 
 export type RecommendationLens = "roster" | "safe" | "upside" | "pivot";
@@ -34,6 +26,12 @@ export interface CandidateRolloutSummary {
   averageStarterPoints: number;
   completionRate: number;
   averageRosterRisk: number;
+  downsideLineupPoints: number;
+  playoffProbability: number;
+  championshipProbability: number;
+  expectedRegret: number;
+  confidenceLow: number;
+  confidenceHigh: number;
 }
 
 export interface RecommendationLensResult {
@@ -62,6 +60,7 @@ interface CandidateRolloutInput {
   riskTolerance?: RiskTolerance;
   simulationCount?: number;
   candidateLimit?: number;
+  opponentProfiles?: OpponentProfile[];
 }
 
 function clamp(value: number, minimum: number, maximum: number): number {
@@ -100,43 +99,16 @@ function deterministicProbability(seed: string, key: string): number {
   return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
 }
 
-function riskWeight(tolerance: RiskTolerance): number {
-  if (tolerance === "safe") return 8;
-  if (tolerance === "upside") return 1.5;
-  return 4.5;
-}
-
-function futureUserPicks(input: {
-  teams: DraftTeam[];
-  league: LeagueSettings;
-  userTeamId: string;
-  decisionOverall: number;
-  remainingSelections: number;
-}): number[] {
-  const picks: number[] = [];
-  const maximumOverall =
-    input.teams.length * Math.max(draftRosterSize(input.league), 1);
-  for (
-    let overall = input.decisionOverall + 1;
-    overall <= maximumOverall && picks.length < input.remainingSelections;
-    overall += 1
-  ) {
-    if (
-      teamForOverallPick(overall, input.teams, input.league.draftType).id ===
-      input.userTeamId
-    ) {
-      picks.push(overall);
-    }
-  }
-  return picks;
-}
-
 function rosterOutcome(input: {
   roster: Player[];
   league: LeagueSettings;
   baselines: ReturnType<typeof estimateDynamicReplacementBaselines>;
 }) {
-  const assignment = assignRoster(input.roster, input.league.rosterSlots);
+  const assignment = assignOptimalRoster(
+    input.roster,
+    input.league.rosterSlots,
+    (player) => calculateFantasyPoints(player, input.league.scoringRules),
+  );
   const starterPoints = assignment.starters.reduce(
     (total, starter) =>
       total + calculateFantasyPoints(starter.player, input.league.scoringRules),
@@ -182,69 +154,83 @@ function rosterOutcome(input: {
   };
 }
 
-function chooseFuturePlayer(input: {
-  pool: Player[];
-  roster: Player[];
+function weeklyPlayerPoints(player: Player, league: LeagueSettings, seed: string): number {
+  const projection = calculateFantasyPoints(player, league.scoringRules) / 17;
+  const first = deterministicProbability(seed, `${player.id}:a`);
+  const second = deterministicProbability(seed, `${player.id}:b`);
+  const centered = (first + second - 1) * 1.7;
+  const volatility = 0.2 + player.risk * 0.45 - (player.consistency ?? 0.5) * 0.12;
+  const upside = Math.max(0, centered) * (player.upside ?? 0.5) * 0.35;
+  return Math.max(0, projection * (1 + centered * volatility + upside));
+}
+
+function weeklyLineupPoints(roster: Player[], league: LeagueSettings, seed: string): number {
+  const weekly = new Map(roster.map((player) => [player.id, weeklyPlayerPoints(player, league, seed)]));
+  const assignment = assignOptimalRoster(
+    roster,
+    league.rosterSlots,
+    (player) => weekly.get(player.id) ?? 0,
+  );
+  return assignment.starters.reduce(
+    (total, starter) => total + (weekly.get(starter.player.id) ?? 0),
+    0,
+  );
+}
+
+function seasonOutcome(input: {
+  rosters: Map<string, Player[]>;
+  teams: DraftTeam[];
+  userTeamId: string;
   league: LeagueSettings;
-  baselines: ReturnType<typeof estimateDynamicReplacementBaselines>;
-  strategy: "balanced" | "needs" | "value";
-  riskTolerance: RiskTolerance;
-}): Player | undefined {
-  const filledBefore = assignRoster(
-    input.roster,
-    input.league.rosterSlots,
-  ).starters.length;
-  const completionPlan = getRosterCompletionPlan(input.roster, input.league);
-  return [...input.pool]
-    .map((player) => {
-      const points = calculateFantasyPoints(player, input.league.scoringRules);
-      const baseline = Math.min(
-        ...player.positions.map((position) => input.baselines[position]),
+  seed: string;
+}) {
+  const regularTotals = new Map(input.teams.map((team) => [team.id, 0]));
+  let userWeeklyTotal = 0;
+  const userWeeks: number[] = [];
+  for (let week = 1; week <= 14; week += 1) {
+    for (const team of input.teams) {
+      const points = weeklyLineupPoints(
+        input.rosters.get(team.id) ?? [],
+        input.league,
+        `${input.seed}:week:${week}`,
       );
-      const rosterFit = assessCandidateRosterFit(
-        input.roster,
-        player,
-        input.league.rosterSlots,
-        filledBefore,
-      );
-      const position = primaryPosition(player);
-      const canWaitOnSingleStarter =
-        completionPlan.mode !== "force-starters" &&
-        (position === "QB" || position === "TE") &&
-        !input.roster.some((rostered) =>
-          rostered.positions.includes(position),
-        );
-      const rosterFitScore = canWaitOnSingleStarter
-        ? Math.min(rosterFit.score, 1.5)
-        : rosterFit.score;
-      const needMultiplier =
-        input.strategy === "needs"
-          ? 2.2
-          : input.strategy === "balanced"
-            ? 1.4
-            : 0.7;
-      const valueWeight = input.strategy === "value" ? 1.25 : 1;
-      const personalRank =
-        getPositionRankValue(player, input.pool) * 0.8;
-      const byeCollision = input.roster.filter(
-        (teammate) => teammate.byeWeek === player.byeWeek,
-      ).length;
-      return {
-        player,
-        score:
-          ((points - baseline) / 6) * valueWeight +
-          personalRank +
-          rosterFitScore * needMultiplier -
-          player.risk * riskWeight(input.riskTolerance) -
-          byeCollision * 0.35,
-      };
-    })
-    .sort(
-      (a, b) =>
-        b.score - a.score ||
-        getPositionRank(a.player, input.pool) -
-          getPositionRank(b.player, input.pool),
-    )[0]?.player;
+      regularTotals.set(team.id, (regularTotals.get(team.id) ?? 0) + points);
+      if (team.id === input.userTeamId) {
+        userWeeklyTotal += points;
+        userWeeks.push(points);
+      }
+    }
+  }
+  const seeds = [...input.teams].sort(
+    (a, b) => (regularTotals.get(b.id) ?? 0) - (regularTotals.get(a.id) ?? 0),
+  );
+  const playoffTeams = seeds.slice(0, Math.min(4, seeds.length));
+  const madePlayoffs = playoffTeams.some((team) => team.id === input.userTeamId);
+  const gameWinner = (first: DraftTeam, second: DraftTeam, week: number) => {
+    const firstPoints = weeklyLineupPoints(
+      input.rosters.get(first.id) ?? [],
+      input.league,
+      `${input.seed}:week:${week}`,
+    );
+    const secondPoints = weeklyLineupPoints(
+      input.rosters.get(second.id) ?? [],
+      input.league,
+      `${input.seed}:week:${week}`,
+    );
+    return firstPoints >= secondPoints ? first : second;
+  };
+  let champion: DraftTeam | undefined;
+  if (playoffTeams.length === 4) {
+    const finalistOne = gameWinner(playoffTeams[0], playoffTeams[3], 15);
+    const finalistTwo = gameWinner(playoffTeams[1], playoffTeams[2], 15);
+    champion = gameWinner(finalistOne, finalistTwo, 16);
+  }
+  return {
+    averageWeeklyPoints: userWeeklyTotal / 14,
+    downsideWeeklyPoints: percentile(userWeeks, 0.2),
+    madePlayoffs,
+    champion: champion?.id === input.userTeamId,
+  };
 }
 
 function summarizeCandidate(
@@ -252,87 +238,76 @@ function summarizeCandidate(
   input: CandidateRolloutInput,
   simulations: number,
 ): CandidateRolloutSummary {
-  const draftedIds = new Set(input.picks.map((pick) => pick.playerId));
-  draftedIds.add(candidate.player.id);
   const baselines = estimateDynamicReplacementBaselines(
     input.players,
     input.league,
     input.picks,
   );
-  const remainingSelections = Math.max(
-    0,
-    draftRosterSize(input.league) - input.userRoster.length - 1,
-  );
-  const userPicks = futureUserPicks({
-    teams: input.teams,
-    league: input.league,
-    userTeamId: input.userTeamId,
-    decisionOverall: input.decisionOverall,
-    remainingSelections,
-  });
   const grades: number[] = [];
   const starterPoints: number[] = [];
   const completionRates: number[] = [];
   const rosterRisks: number[] = [];
-  const strategies = ["balanced", "needs", "value"] as const;
+  const weeklyPoints: number[] = [];
+  const downsidePoints: number[] = [];
+  let playoffs = 0;
+  let championships = 0;
 
   for (let run = 0; run < simulations; run += 1) {
-    const roster = [...input.userRoster, candidate.player];
-    const selectedIds = new Set(draftedIds);
-    const strategy = strategies[run % strategies.length];
-
-    for (const overall of userPicks) {
-      const availablePool = input.players.filter(
-        (player) => !selectedIds.has(player.id) && !player.excluded,
-      );
-      const pool = applyRosterCompletionPlan(
-        availablePool,
-        roster,
-        input.league,
-      );
-      const spread = Math.max(4, input.league.teamCount / 2);
-      const survivors = pool.filter((player) => {
-        const survivalProbability = clamp(
-          1 / (1 + Math.exp((overall - getMarketAdp(player, input.league.teamCount)) / spread)),
-          0.01,
-          0.99,
-        );
-        return (
-          deterministicProbability(
-            input.seed,
-            `${candidate.player.id}:${run}:${player.id}`,
-          ) <= survivalProbability
-        );
-      });
-      const selected = chooseFuturePlayer({
-        pool: survivors.length > 0 ? survivors : pool,
-        roster,
-        league: input.league,
-        baselines,
-        strategy,
-        riskTolerance: input.riskTolerance ?? "balanced",
-      });
-      if (!selected) break;
-      roster.push(selected);
-      selectedIds.add(selected.id);
-    }
+    const world = simulateDraftWorld({
+      players: input.players,
+      league: input.league,
+      teams: input.teams,
+      initialPicks: input.picks,
+      seed: `${input.seed}:world:${run}`,
+      userTeamId: input.userTeamId,
+      forcedUserPick: {
+        overall: input.decisionOverall,
+        playerId: candidate.player.id,
+      },
+      riskTolerance: input.riskTolerance,
+      opponentProfiles: input.opponentProfiles,
+    });
+    const roster = world.rosters.get(input.userTeamId) ?? [];
 
     const outcome = rosterOutcome({ roster, league: input.league, baselines });
+    const season = seasonOutcome({
+      rosters: world.rosters,
+      teams: input.teams,
+      userTeamId: input.userTeamId,
+      league: input.league,
+      seed: `${input.seed}:season:${run}`,
+    });
     grades.push(outcome.grade);
     starterPoints.push(outcome.starterPoints);
     completionRates.push(outcome.completionRate);
     rosterRisks.push(outcome.averageRisk);
+    weeklyPoints.push(season.averageWeeklyPoints);
+    downsidePoints.push(season.downsideWeeklyPoints);
+    if (season.madePlayoffs) playoffs += 1;
+    if (season.champion) championships += 1;
   }
+
+  const averageGrade = average(grades);
+  const standardError = Math.sqrt(
+    average(grades.map((grade) => (grade - averageGrade) ** 2)) /
+      Math.max(1, grades.length),
+  );
 
   return {
     playerId: candidate.player.id,
     simulations,
-    averageRosterGrade: round(average(grades)),
+    averageRosterGrade: round(averageGrade),
     floorRosterGrade: round(percentile(grades, 0.2)),
     ceilingRosterGrade: round(percentile(grades, 0.8)),
     averageStarterPoints: round(average(starterPoints)),
     completionRate: round(average(completionRates)),
     averageRosterRisk: round(average(rosterRisks)),
+    downsideLineupPoints: round(average(downsidePoints)),
+    playoffProbability: round(playoffs / simulations),
+    championshipProbability: round(championships / simulations),
+    expectedRegret: 0,
+    confidenceLow: round(averageGrade - 1.96 * standardError),
+    confidenceHigh: round(averageGrade + 1.96 * standardError),
   };
 }
 
@@ -350,12 +325,31 @@ function selectRolloutCandidates(
   const selected: PlayerRecommendation[] = [];
   const selectedIds = new Set<string>();
   const add = (recommendation: PlayerRecommendation | undefined) => {
-    if (!recommendation || selectedIds.has(recommendation.player.id)) return;
+    if (
+      selected.length >= candidateLimit ||
+      !recommendation ||
+      selectedIds.has(recommendation.player.id)
+    ) return;
     selected.push(recommendation);
     selectedIds.add(recommendation.player.id);
   };
 
   recommendations.slice(0, Math.min(4, candidateLimit)).forEach(add);
+  add(
+    [...recommendations].sort(
+      (a, b) => b.breakdown.tierScarcity - a.breakdown.tierScarcity,
+    )[0],
+  );
+  add(
+    [...recommendations].sort((a, b) => {
+      const aMarket = a.player.yahooAdpRecent ?? a.player.yahooAdpAll ?? a.player.adp;
+      const bMarket = b.player.yahooAdpRecent ?? b.player.yahooAdpAll ?? b.player.adp;
+      return (
+        Math.abs(bMarket - b.player.userRank) -
+        Math.abs(aMarket - a.player.userRank)
+      );
+    })[0],
+  );
   for (const position of ["QB", "RB", "WR", "TE"] as const) {
     if (selected.length >= candidateLimit) break;
     add(
@@ -442,9 +436,19 @@ export function integrateRosterOutcomes(
         expectedRosterGrade: summary.averageRosterGrade,
         rosterFloor: summary.floorRosterGrade,
         rosterCeiling: summary.ceilingRosterGrade,
+        expectedLineupPoints: summary.averageStarterPoints,
+        downsideLineupPoints: summary.downsideLineupPoints,
+        playoffProbability: summary.playoffProbability,
+        championshipProbability: summary.championshipProbability,
+        expectedRegret: summary.expectedRegret,
+        modelUncertainty: round(summary.confidenceHigh - summary.confidenceLow),
         total,
       },
       confidence,
+      confidenceInterval: {
+        low: summary.confidenceLow,
+        high: summary.confidenceHigh,
+      },
       explanation: [
         `Expected completed roster: ${summary.averageRosterGrade} average, ${summary.floorRosterGrade} floor, ${summary.ceilingRosterGrade} ceiling`,
         "Best-overall grade blends 65% completed-roster outcomes with 35% live pick value",
@@ -453,34 +457,8 @@ export function integrateRosterOutcomes(
     };
   });
 
-  const byPosition = new Map<string, PlayerRecommendation[]>();
-  for (const recommendation of blended) {
-    const position = primaryPosition(recommendation.player);
-    byPosition.set(position, [
-      ...(byPosition.get(position) ?? []),
-      recommendation,
-    ]);
-  }
-  const guarded = [...byPosition.values()].flatMap((group) => {
-    const ordered = [...group].sort(
-      (a, b) =>
-        (baseIndex.get(a.player.id) ?? Number.POSITIVE_INFINITY) -
-        (baseIndex.get(b.player.id) ?? Number.POSITIVE_INFINITY),
-    );
-    let maximumAllowed = Number.POSITIVE_INFINITY;
-    return ordered.map((recommendation) => {
-      const total = round(
-        Math.min(recommendation.breakdown.total, maximumAllowed),
-      );
-      maximumAllowed = total - 0.1;
-      return {
-        ...recommendation,
-        breakdown: { ...recommendation.breakdown, total },
-      };
-    });
-  });
   const guardedById = new Map(
-    guarded.map((recommendation) => [recommendation.player.id, recommendation]),
+    blended.map((recommendation) => [recommendation.player.id, recommendation]),
   );
   const sortedAnalyzed = analyzed
     .map((recommendation) => guardedById.get(recommendation.player.id)!)
@@ -515,16 +493,24 @@ export function integrateRosterOutcomes(
 export function analyzeCandidateRollouts(
   input: CandidateRolloutInput,
 ): CandidateRolloutAnalysis {
-  const simulations = Math.max(18, Math.round(input.simulationCount ?? 36));
+  const simulations = Math.max(
+    8,
+    Math.min(12, Math.round(input.simulationCount ?? 12)),
+  );
   const candidates = selectRolloutCandidates(
     input.recommendations,
     Math.max(4, Math.round(input.candidateLimit ?? 8)),
   );
   if (candidates.length === 0) return { summaries: [], lenses: [] };
 
-  const summaries = candidates.map((candidate) =>
+  const rawSummaries = candidates.map((candidate) =>
     summarizeCandidate(candidate, input, simulations),
   );
+  const bestAverageGrade = Math.max(...rawSummaries.map((summary) => summary.averageRosterGrade));
+  const summaries = rawSummaries.map((summary) => ({
+    ...summary,
+    expectedRegret: round(Math.max(0, bestAverageGrade - summary.averageRosterGrade)),
+  }));
   const recommendationById = new Map(
     candidates.map((recommendation) => [recommendation.player.id, recommendation]),
   );

@@ -10,6 +10,13 @@ import {
 } from "../../lib/domain/candidate-rollout";
 import { recommendPlayers } from "../../lib/domain/recommendation";
 import { chooseOpponentPlayer } from "../../lib/domain/simulation";
+import { simulateDraftWorld } from "../../lib/domain/draft-simulator";
+import { assignOptimalRoster } from "../../lib/domain/roster";
+import { getMarketSignal } from "../../lib/domain/rankings";
+import {
+  benchmarkDraftStrategies,
+  scoreProbabilityForecasts,
+} from "../../lib/domain/validation";
 import {
   calculateFantasyPoints,
   estimateDynamicReplacementBaselines,
@@ -33,11 +40,18 @@ test("calculates exact full-PPR fantasy points from raw projections", () => {
   );
 });
 
-test("uses an imported UDK point total instead of legacy stat projections", () => {
+test("league-scored raw projections take precedence and source totals remain a fallback", () => {
   const bijan = demoPlayers.find((player) => player.id === "bijan")!;
   const imported = { ...bijan, sourceProjectedPoints: 287.6 };
 
-  assert.equal(calculateFantasyPoints(imported, demoLeague.scoringRules), 287.6);
+  assert.equal(calculateFantasyPoints(imported, demoLeague.scoringRules), 340);
+  assert.equal(
+    calculateFantasyPoints(
+      { ...imported, projectedStats: {} },
+      demoLeague.scoringRules,
+    ),
+    287.6,
+  );
 });
 
 test("calculates Yahoo big-play and DST categories independently", () => {
@@ -74,6 +88,108 @@ test("assigns players to eligible starter slots without double counting", () => 
     demoPlayers.find((player) => player.id === "bowers")!,
   ];
   assert.equal(assignedStarterCount(roster, demoLeague.rosterSlots), 3);
+});
+
+test("optimal lineup assignment starts the highest-value legal players", () => {
+  const [low, high, middle] = [
+    { ...demoPlayers[2], id: "low", sourceProjectedPoints: 100, projectedStats: {} },
+    { ...demoPlayers[3], id: "high", sourceProjectedPoints: 300, projectedStats: {} },
+    { ...demoPlayers[4], id: "middle", sourceProjectedPoints: 200, projectedStats: {} },
+  ];
+  const assignment = assignOptimalRoster(
+    [low, high, middle],
+    [
+      { id: "WR", label: "WR", eligiblePositions: ["WR"] },
+      { id: "FLEX", label: "FLEX", eligiblePositions: ["RB", "WR", "TE"] },
+    ],
+    (player) => player.sourceProjectedPoints ?? 0,
+  );
+  assert.deepEqual(
+    new Set(assignment.starters.map(({ player }) => player.id)),
+    new Set(["high", "middle"]),
+  );
+  assert.equal(assignment.bench[0].id, "low");
+});
+
+test("Yahoo recent ADP is shrunk toward the all-draft market", () => {
+  const player = {
+    ...demoPlayers[0],
+    yahooAdpRecent: 10,
+    yahooAdpAll: 30,
+    yahooPercentDrafted: 80,
+    yahooAdpUpdatedAt: "2026-08-09T12:00:00.000Z",
+  };
+  const signal = getMarketSignal(player, 8, Date.parse("2026-08-09T12:00:00.000Z"));
+  assert.equal(signal.source, "Yahoo blended");
+  assert.ok(signal.adp > 10 && signal.adp < 30);
+  assert.ok(signal.recentWeight < 0.75);
+});
+
+test("an overdue elite becomes more attractive to modeled opponents", () => {
+  const elite = {
+    ...demoPlayers[0],
+    id: "overdue-elite",
+    yahooAdpAll: 1,
+    yahooAdpRecent: 1,
+  };
+  const onTime = {
+    ...demoPlayers[1],
+    id: "on-time-player",
+    yahooAdpAll: 50,
+    yahooAdpRecent: 50,
+  };
+  const selected = chooseOpponentPlayer({
+    available: [elite, onTime],
+    roster: [],
+    league: yahooLeague,
+    overall: 50,
+    seed: "overdue-hazard",
+    teamId: "opponent",
+    strategy: "best-available",
+  });
+  assert.equal(selected?.id, elite.id);
+});
+
+test("sequential draft worlds never duplicate or resurrect players", () => {
+  const teams = buildDemoTeams(demoLeague.teamCount, 3);
+  const world = simulateDraftWorld({
+    players: demoPlayers,
+    league: demoLeague,
+    teams,
+    initialPicks: [],
+    seed: "coherent-world",
+    userTeamId: "user",
+  });
+  const playerIds = world.picks.map((pick) => pick.playerId);
+  assert.equal(new Set(playerIds).size, playerIds.length);
+  assert.deepEqual(
+    world.picks.map((pick) => pick.overall),
+    Array.from({ length: world.picks.length }, (_, index) => index + 1),
+  );
+});
+
+test("validation scores forecasts and benchmarks transparent baselines", () => {
+  const calibration = scoreProbabilityForecasts([
+    { probability: 0.8, occurred: true },
+    { probability: 0.2, occurred: false },
+  ]);
+  assert.ok(Math.abs(calibration.brier - 0.04) < 1e-9);
+  assert.ok(Math.abs(calibration.logLoss - -Math.log(0.8)) < 1e-9);
+  const teams = buildDemoTeams(demoLeague.teamCount, 3);
+  const benchmark = benchmarkDraftStrategies({
+    players: demoPlayers,
+    league: demoLeague,
+    teams,
+    userTeamId: "user",
+    seed: "baseline-benchmark",
+    simulations: 2,
+  });
+  assert.deepEqual(
+    benchmark.map(({ strategy }) => strategy),
+    ["engine-v4", "udk-bpa", "yahoo-bpa", "static-vor"],
+  );
+  assert.ok(benchmark.every((result) => result.completionRate > 0.8));
+  assert.equal(Math.min(...benchmark.map((result) => result.averageRegret)), 0);
 });
 
 test("recommendations exclude drafted players and are ordered by utility", () => {
@@ -383,7 +499,7 @@ test("waits on quarterback value but forces every starter before specialists", (
   );
 });
 
-test("personal position rank controls same-position order unless a major exception exists", () => {
+test("personal position rank is a soft prior rather than a hard outcome veto", () => {
   const template = demoPlayers.find((player) => player.id === "bijan")!;
   const kyren = {
     ...template,
@@ -431,13 +547,8 @@ test("personal position rank controls same-position order unless a major excepti
     ({ player }) => player.id === breece.id,
   )!;
 
-  assert.equal(guarded[0].player.id, kyren.id);
-  assert.ok(guardedBreece.breakdown.rankGuardrail > 0);
-  assert.ok(
-    guardedBreece.explanation.some((reason) =>
-      reason.includes("Personal ranking guardrail"),
-    ),
-  );
+  assert.equal(guarded[0].player.id, breece.id);
+  assert.equal(guardedBreece.breakdown.rankGuardrail, 0);
   const rosterGuarded = integrateRosterOutcomes(
     guarded,
     [
@@ -450,6 +561,12 @@ test("personal position rank controls same-position order unless a major excepti
         averageStarterPoints: 1200,
         completionRate: 1,
         averageRosterRisk: 0.15,
+        downsideLineupPoints: 100,
+        playoffProbability: 0.5,
+        championshipProbability: 0.1,
+        expectedRegret: 25,
+        confidenceLow: 68,
+        confidenceHigh: 72,
       },
       {
         playerId: breece.id,
@@ -460,11 +577,17 @@ test("personal position rank controls same-position order unless a major excepti
         averageStarterPoints: 1300,
         completionRate: 1,
         averageRosterRisk: 0.15,
+        downsideLineupPoints: 110,
+        playoffProbability: 0.8,
+        championshipProbability: 0.3,
+        expectedRegret: 0,
+        confidenceLow: 92,
+        confidenceHigh: 98,
       },
     ],
     "balanced",
   );
-  assert.equal(rosterGuarded[0].player.id, kyren.id);
+  assert.equal(rosterGuarded[0].player.id, breece.id);
 
   const projectionException = recommendPlayers({
     ...shared,
@@ -481,11 +604,7 @@ test("personal position rank controls same-position order unless a major excepti
   });
 
   assert.equal(projectionException[0].player.id, breece.id);
-  assert.ok(
-    projectionException[0].explanation.some((reason) =>
-      reason.includes("Rank exception"),
-    ),
-  );
+  assert.equal(projectionException[0].breakdown.rankGuardrail, 0);
 });
 
 test("advanced recommendations model live baselines, opponents, and deterministic wait scenarios", () => {

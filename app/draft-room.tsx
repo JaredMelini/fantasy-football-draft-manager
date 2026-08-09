@@ -20,6 +20,9 @@ import {
 } from "@/lib/domain/candidate-rollout";
 import { recommendPlayers } from "@/lib/domain/recommendation";
 import { assignRoster } from "@/lib/domain/roster";
+import { calculateFantasyPoints, projectionModeForPlayer } from "@/lib/domain/scoring";
+import { buildDraftSlotPlaybooks } from "@/lib/domain/draft-slot-planning";
+import { buildDecisionBrief } from "@/lib/domain/decision-analyst";
 import {
   getMarketAdp,
   getPositionRank,
@@ -38,6 +41,7 @@ import type {
   DraftEvent,
   LeagueSettings,
   OpponentStrategy,
+  OpponentProfile,
   Player,
   PlayerPosition,
   RecommendationDecision,
@@ -63,6 +67,14 @@ function formatSignedScore(value: number): string {
   return `${value > 0 ? "+" : ""}${value}`;
 }
 
+function formatLeaguePoints(player: Player, league: LeagueSettings): string {
+  const mode = projectionModeForPlayer(player);
+  if (mode === "rank-only") return "—";
+  return mode === "source-total"
+    ? formatPlayerPoints(player)
+    : formatPoints(calculateFantasyPoints(player, league.scoringRules));
+}
+
 function decisionLabel(decision: RecommendationDecision): string {
   if (decision === "draft-now") return "Draft now";
   if (decision === "lean-now") return "Lean now";
@@ -78,6 +90,7 @@ interface DraftRoomProps {
   events: DraftEvent[];
   seed: string;
   strategy: OpponentStrategy;
+  opponentProfiles: OpponentProfile[];
   onEventsChange: (events: DraftEvent[]) => void;
   onResetDraft: () => void;
   onRunBusyTask: (
@@ -92,6 +105,7 @@ export function DraftRoom({
   events,
   seed,
   strategy,
+  opponentProfiles,
   onEventsChange,
   onResetDraft,
   onRunBusyTask,
@@ -108,6 +122,7 @@ export function DraftRoom({
   const deferredSearch = useDeferredValue(search);
   const deferredCaptureText = useDeferredValue(captureText);
   const effectiveTeamCount = Math.max(1, Math.round(league.teamCount || 1));
+  const draftSlotPending = league.userDraftSlot === undefined;
   const teams = useMemo(
     () => buildDemoTeams(effectiveTeamCount, league.userDraftSlot ?? 1),
     [effectiveTeamCount, league.userDraftSlot],
@@ -172,7 +187,7 @@ export function DraftRoom({
     : currentOverall + currentTurnOffset;
   const baseRecommendations = useMemo(
     () =>
-      draftComplete
+      draftComplete || draftSlotPending
         ? []
         : recommendPlayers({
             players,
@@ -186,14 +201,17 @@ export function DraftRoom({
             riskTolerance,
             simulationCount: 64,
             limit: players.length,
+            opponentProfiles,
           }),
     [
       currentOverall,
+      draftSlotPending,
       draftComplete,
       league,
       nextTurnGap,
       picks,
       players,
+      opponentProfiles,
       riskTolerance,
       seed,
       teams,
@@ -202,7 +220,7 @@ export function DraftRoom({
   );
   const rolloutAnalysis = useMemo(
     () =>
-      draftComplete
+      draftComplete || draftSlotPending
         ? { summaries: [], lenses: [] }
         : analyzeCandidateRollouts({
             recommendations: baseRecommendations,
@@ -217,13 +235,16 @@ export function DraftRoom({
             riskTolerance,
             simulationCount: 18,
             candidateLimit: 6,
+            opponentProfiles,
           }),
     [
       decisionOverall,
       draftComplete,
+      draftSlotPending,
       league,
       picks,
       players,
+      opponentProfiles,
       baseRecommendations,
       riskTolerance,
       seed,
@@ -333,13 +354,32 @@ export function DraftRoom({
         (summary) => summary.playerId === selected.player.id,
       )
     : undefined;
+  const decisionBrief = useMemo(
+    () =>
+      selected
+        ? buildDecisionBrief({ recommendation: selected, league })
+        : null,
+    [league, selected],
+  );
   const capturePreview = useMemo(
     () => parseDraftPickCapture(deferredCaptureText, players, draftedIds),
     [deferredCaptureText, draftedIds, players],
   );
+  const slotPlaybooks = useMemo(
+    () =>
+      draftSlotPending
+        ? buildDraftSlotPlaybooks({
+            players,
+            league,
+            seed,
+            simulationsPerSlot: 3,
+          })
+        : [],
+    [draftSlotPending, league, players, seed],
+  );
 
   function logPick(playerId: string) {
-    if (draftComplete || draftedIds.has(playerId)) return;
+    if (draftComplete || draftSlotPending || draftedIds.has(playerId)) return;
     const pick = {
       overall: currentOverall,
       round: currentRound,
@@ -384,7 +424,7 @@ export function DraftRoom({
     if (draftComplete || currentTeam.isUser) return;
     void onRunBusyTask("Simulating the next pick", () => {
       onEventsChange(
-        simulateNextPick({ events, teams, league, players, seed, strategy }),
+        simulateNextPick({ events, teams, league, players, seed, strategy, opponentProfiles }),
       );
       setSelectedPlayerId(null);
     });
@@ -394,7 +434,7 @@ export function DraftRoom({
     if (draftComplete || currentTeam.isUser) return;
     void onRunBusyTask("Simulating to your next pick", () => {
       onEventsChange(
-        simulateUntilUserTurn({ events, teams, league, players, seed, strategy }),
+        simulateUntilUserTurn({ events, teams, league, players, seed, strategy, opponentProfiles }),
       );
       setSelectedPlayerId(null);
     });
@@ -439,10 +479,12 @@ export function DraftRoom({
           <p>{league.teamCount} teams · {league.scoringLabel} · {draftSlotLabel}</p>
         </div>
         <div className={`pick-clock ${draftComplete ? "complete" : ""}`} aria-live="polite">
-          <span>{rankingsNeeded ? "Rankings needed" : draftComplete ? "Draft complete" : "On the clock"}</span>
+          <span>{rankingsNeeded ? "Rankings needed" : draftSlotPending ? "Draft slot required" : draftComplete ? "Draft complete" : "On the clock"}</span>
           <strong>
             {rankingsNeeded
               ? "Import your UDK files"
+              : draftSlotPending
+              ? "Set your Yahoo slot"
               : draftComplete
               ? `${picks.length} picks recorded`
               : `${currentTeam.name} · ${currentRound}.${((currentOverall - 1) % effectiveTeamCount) + 1}`}
@@ -450,6 +492,8 @@ export function DraftRoom({
           <small>
             {rankingsNeeded
               ? "Open Rankings to build the player board"
+              : draftSlotPending
+              ? "Use League Setup when Yahoo reveals the order"
               : draftComplete
               ? "Open Mock Lab for replay and evaluation"
               : currentTeam.isUser
@@ -467,6 +511,27 @@ export function DraftRoom({
       <div className="draft-progress" aria-label="Draft progress">
         <span style={{ width: `${maximumPicks === 0 ? 0 : (picks.length / maximumPicks) * 100}%` }} />
       </div>
+
+      {draftSlotPending && slotPlaybooks.length > 0 && (
+        <Card className="quick-capture">
+          <div>
+            <p className="eyebrow">Random draft order playbooks</p>
+            <h2>Plans are ready for all {effectiveTeamCount} slots</h2>
+            <p>
+              Live recommendations stay locked until Yahoo reveals your exact
+              slot. Each row is generated from coherent full-draft simulations
+              using your league scoring, UDK board, and Yahoo market behavior.
+            </p>
+          </div>
+          <div className="capture-results">
+            {slotPlaybooks.map((playbook) => (
+              <span key={playbook.slot}>
+                <strong>Slot {playbook.slot}</strong> {playbook.openingPositions} · {playbook.firstPickTargets.join(" / ")}
+              </span>
+            ))}
+          </div>
+        </Card>
+      )}
 
       {showQuickCapture && (
         <Card className="quick-capture">
@@ -491,7 +556,7 @@ export function DraftRoom({
       <div className="workspace-grid" id="draft-room">
         <section className="recommendation-panel panel">
           <div className="section-heading">
-            <div><p className="eyebrow">{isReviewingAlternative ? "Reviewing alternative" : "Best decision now"}</p><h2>{selected?.player.name ?? (rankingsNeeded ? "Import rankings to begin" : "Session complete")}</h2></div>
+            <div><p className="eyebrow">{isReviewingAlternative ? "Reviewing alternative" : "Best decision now"}</p><h2>{selected?.player.name ?? (rankingsNeeded ? "Import rankings to begin" : draftSlotPending ? "Set your Yahoo draft slot" : "Session complete")}</h2></div>
             <div className="recommendation-heading-actions">
               {selected && <span className="score-badge" title="Unified best-overall grade">{selected.breakdown.total}</span>}
               {isReviewingAlternative && (
@@ -550,9 +615,10 @@ export function DraftRoom({
                   <option value="upside">Chase upside</option>
                 </select>
               </label>
-              <div className="recommendation-summary"><strong>{formatPlayerPoints(selected.player)}</strong><span>{selected.player.sourceProjectedPoints === undefined ? "UDK points not imported" : "UDK projected points"}</span></div>
+              <div className="recommendation-summary"><strong>{formatLeaguePoints(selected.player, league)}</strong><span>{projectionModeForPlayer(selected.player) === "raw-league-scored" ? "League-scored projection" : projectionModeForPlayer(selected.player) === "source-total" ? "Imported source projection" : "Rank-only player"}</span></div>
               <ul className="reason-list">
                 {selected.explanation.map((reason) => <li key={reason}>{reason}</li>)}
+                {decisionBrief?.cautions.map((reason) => <li key={reason}>{reason}</li>)}
               </ul>
               <div className="wait-comparison" aria-label="Draft now versus wait comparison">
                 <div><span>Draft now</span><strong>{selected.player.name}</strong><small>Lock in a {selected.breakdown.total} unified decision grade</small></div>
@@ -570,8 +636,12 @@ export function DraftRoom({
                     <div><dt>Ceiling</dt><dd>{selectedRollout.ceilingRosterGrade}</dd></div>
                     <div><dt>Starter pts</dt><dd>{selectedRollout.averageStarterPoints}</dd></div>
                     <div><dt>Filled</dt><dd>{Math.round(selectedRollout.completionRate * 100)}%</dd></div>
+                    <div><dt>Playoffs</dt><dd>{Math.round(selectedRollout.playoffProbability * 100)}%</dd></div>
+                    <div><dt>Title</dt><dd>{Math.round(selectedRollout.championshipProbability * 100)}%</dd></div>
+                    <div><dt>Regret</dt><dd>{selectedRollout.expectedRegret}</dd></div>
+                    <div><dt>95% CI</dt><dd>{selectedRollout.confidenceLow}–{selectedRollout.confidenceHigh}</dd></div>
                   </dl>
-                  <p>Based on {selectedRollout.simulations} completed drafts using balanced, needs-first, and value-first future picks.</p>
+                  <p>Based on {selectedRollout.simulations} coherent full drafts with exact snake turns, persistent manager tendencies, weekly optimal lineups, and paired season outcomes.</p>
                 </div>
               )}
               <div className="factor-grid" aria-label="Recommendation factors">

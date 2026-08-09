@@ -25,6 +25,7 @@ import {
 } from "@/lib/local-draft-store";
 import {
   createDefaultOfflinePackage,
+  snapshotForPlayers,
   type OfflineDraftPackage,
 } from "@/lib/offline-package";
 import type {
@@ -48,7 +49,7 @@ export function DraftManagerApp() {
     getServerDraftSnapshot,
   );
   const state = storedState ?? DEFAULT_STATE;
-  const { league, players, events, simulationSeed, opponentStrategy } = state;
+  const { league, players, events, simulationSeed, opponentStrategy, opponentProfiles } = state;
 
   const navItems = [
     { id: "draft" as const, label: "Draft Room", detail: "Live decisions", icon: LayoutDashboard },
@@ -164,6 +165,7 @@ export function DraftManagerApp() {
               events={events}
               seed={simulationSeed}
               strategy={opponentStrategy}
+              opponentProfiles={opponentProfiles}
               onEventsChange={(nextEvents) => saveState({ events: nextEvents })}
               onResetDraft={() => resetDraft()}
               onRunBusyTask={runBusyTask}
@@ -176,6 +178,7 @@ export function DraftManagerApp() {
               events={events}
               seed={simulationSeed}
               strategy={opponentStrategy}
+              opponentProfiles={opponentProfiles}
               onEventsChange={(nextEvents) => saveState({ events: nextEvents })}
               onSeedChange={(seed: string) => saveState({ simulationSeed: seed })}
               onStrategyChange={(strategy: OpponentStrategy) =>
@@ -191,7 +194,21 @@ export function DraftManagerApp() {
               players={players}
               teamCount={league.teamCount}
               onPlayersChange={(nextPlayers: Player[]) =>
-                saveState({ players: nextPlayers })
+                saveState({
+                  players: nextPlayers,
+                  dataSnapshots: [
+                    ...state.dataSnapshots,
+                    snapshotForPlayers(
+                      nextPlayers,
+                      nextPlayers.some((player) => player.yahooAdpUpdatedAt)
+                        ? "yahoo-market"
+                        : "rankings",
+                      nextPlayers.some((player) => player.yahooAdpUpdatedAt)
+                        ? "Yahoo + Fantasy Footballers UDK"
+                        : "Fantasy Footballers UDK",
+                    ),
+                  ].slice(-20),
+                })
               }
               onReset={() =>
                 saveState({ players: [], events: [] })

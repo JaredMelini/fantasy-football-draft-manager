@@ -419,13 +419,22 @@ Official references: [Yahoo Fantasy API documentation](https://sports.yahoo.com/
 - [ ] Add projections for bonus-play, return, kicker-distance, and DST points-allowed categories, or use a licensed source-projected total that already reflects these rules.
 - [x] Interactive performance pass: memoized decision analysis, deferred search filtering, batched local persistence, lighter mock simulations, and blocking progress feedback for long actions.
 - [x] Roster-construction guardrails distinguish dedicated starter needs from FLEX-only duplicates, preventing early backup QB/TE/K/DST recommendations while core lineup needs remain.
-- [x] Personal-ranking guardrails preserve the user-defined order within each position; only documented projection, safety, or upside exceptions can promote a lower-ranked player.
+- [x] Personal ranks remain strong position-specific priors; paired roster outcomes may override them without an artificial hard ceiling.
 - [x] Recommendation labels separate the primary decision score from completed-roster simulations, with explicit alternative-review state and a return-to-best control.
 - [x] Decision Engine v3 unifies live-pick value with risk-adjusted completed-roster outcomes, using position-diverse candidate simulations while retaining personal-rank and roster-construction guardrails.
 - [x] Available-player board supports reversible projected-points and normalized-ADP sorting while keeping Decision Engine order as the default.
-- [x] UDK Points imports replace legacy built-in projections for matched and newly created players and become the Decision Engine's authoritative point totals.
+- [x] UDK Points are used when they are the only projection; complete raw stat projections are preserved and rescored under the imported league rules with explicit provenance.
 - [x] UDK kicker and D/ST exports import without a Points column and retain position-rank and tier-based decision signals.
 - [x] Endgame roster plan defers K and D/ST until the final two team selections, then guarantees both required positions when eligible players remain available.
 - [x] Removed all built-in starter rankings; fresh and reset workspaces begin with an empty board while previously imported UDK players are preserved during migration.
 - [x] Starter-deadline scheduling reserves enough future picks to fill every open lineup slot without treating an unfilled QB or TE as an automatic early-round priority.
 - [x] Yahoo Draft Analysis ADP imports remain separate from the personal UDK board, prefer Last 7 Days over All Drafts, and drive simulated opponent availability and selections with transparent fallbacks.
+- [x] Hybrid Decision Engine v4 uses provenance-aware league scoring, optimal weighted lineup assignment, FLEX-aware starter demand, bench-inclusive waiver replacement, and import preflight audits.
+- [x] Coherent opponent worlds persist seeded manager archetypes, learn conservative position tendencies from observed picks, use blended Yahoo market/rank signals, and increase pressure on overdue players.
+- [x] Wait probability and candidate outcomes use the same exact sequential snake-draft simulator with no independent survival sampling, duplicate selection, or player resurrection.
+- [x] Candidate comparisons use paired common-random worlds, full roster completion, optimal weekly lineups, downside outcomes, playoff/title probability, expected regret, and statistical confidence intervals.
+- [x] Random draft order is handled with precomputed all-slot playbooks; live recommendations remain locked until the exact Yahoo slot is entered.
+- [x] UDK rankings are soft decision priors rather than hard same-position vetoes, while Yahoo data remains opponent price only.
+- [x] Post-draft strength excludes recommendation adherence and is benchmarkable against UDK BPA, Yahoo BPA, and static VOR with Brier/log-loss forecast scoring.
+- [x] Offline package v2 stores data snapshots and persistent opponent profiles, migrates v1 backups, and retains licensed ranking data on the user's device.
+- [x] Structured analyst boundary permits explanations and unscored news flags but leaves all numeric authority with Engine v4.

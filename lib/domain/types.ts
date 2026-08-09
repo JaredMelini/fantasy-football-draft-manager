@@ -45,6 +45,19 @@ export type ProjectionStat =
 
 export type ProjectedStats = Partial<Record<ProjectionStat, number>>;
 
+export type ProjectionMode =
+  | "raw-league-scored"
+  | "source-total"
+  | "rank-only";
+
+export interface ProjectionProvenance {
+  source: string;
+  importedAt: string;
+  mode: ProjectionMode;
+  scoringProfile?: string;
+  sourceVersion?: string;
+}
+
 export interface ScoringRule {
   stat: ProjectionStat;
   label: string;
@@ -92,14 +105,18 @@ export interface Player {
   positionRanks?: Partial<Record<PlayerPosition, number>>;
   positionTiers?: Partial<Record<PlayerPosition, number>>;
   upside?: number;
+  consistency?: number;
   rankingSource?: string;
   sourceAdp?: string;
   sourceProjectedPoints?: number;
+  projectionProvenance?: ProjectionProvenance;
   yahooAdpAll?: number;
   yahooAdpRecent?: number;
   yahooPercentDrafted?: number;
   yahooOverallRank?: number;
   yahooAdpUpdatedAt?: string;
+  yahooAdpAllUpdatedAt?: string;
+  yahooAdpRecentUpdatedAt?: string;
   excluded?: boolean;
   notes?: string;
   externalIds?: Record<string, string>;
@@ -143,6 +160,28 @@ export type DraftEvent = DraftPickEvent | DraftUndoEvent;
 
 export type OpponentStrategy = "balanced" | "best-available" | "needs-first";
 
+export type OpponentArchetype =
+  | "adp-anchor"
+  | "yahoo-rank"
+  | "autopick"
+  | "rb-aggressive"
+  | "wr-heavy"
+  | "early-onesie"
+  | "tier-value"
+  | "high-variance";
+
+export interface OpponentProfile {
+  teamId: string;
+  archetype: OpponentArchetype;
+  adpWeight: number;
+  yahooRankWeight: number;
+  needWeight: number;
+  variance: number;
+  positionBias: Partial<Record<PlayerPosition, number>>;
+  observedPicks: number;
+  posteriorConfidence: number;
+}
+
 export type RiskTolerance = "safe" | "balanced" | "upside";
 
 export type RecommendationDecision = "draft-now" | "lean-now" | "can-wait";
@@ -163,6 +202,12 @@ export interface RecommendationBreakdown {
   expectedRosterGrade?: number;
   rosterFloor?: number;
   rosterCeiling?: number;
+  expectedLineupPoints?: number;
+  downsideLineupPoints?: number;
+  playoffProbability?: number;
+  championshipProbability?: number;
+  expectedRegret?: number;
+  modelUncertainty?: number;
   total: number;
 }
 
@@ -173,6 +218,9 @@ export interface RecommendationWaitAnalysis {
   opportunityLoss: number;
   recentPositionRun: number;
   opponentNeedScore: number;
+  expectedNextTier?: number;
+  probabilityLow?: number;
+  probabilityHigh?: number;
 }
 
 export interface PlayerRecommendation {
@@ -181,6 +229,24 @@ export interface PlayerRecommendation {
   returnProbability: number;
   decision: RecommendationDecision;
   confidence: number;
+  confidenceInterval?: { low: number; high: number };
   waitAnalysis: RecommendationWaitAnalysis;
   explanation: string[];
+}
+
+export type DataSnapshotKind =
+  | "league"
+  | "rankings"
+  | "projections"
+  | "yahoo-market";
+
+export interface DataSnapshot {
+  id: string;
+  kind: DataSnapshotKind;
+  source: string;
+  importedAt: string;
+  playerCount: number;
+  positions: PlayerPosition[];
+  scoringProfile?: string;
+  fingerprint?: string;
 }

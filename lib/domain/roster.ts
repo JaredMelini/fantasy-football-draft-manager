@@ -17,6 +17,94 @@ export interface CandidateRosterFit {
   reason: string;
 }
 
+/**
+ * Finds the highest-value legal starting lineup. Roster assignment is a small
+ * weighted bipartite problem. The rectangular Hungarian algorithm is exact and
+ * materially faster than enumerating slot masks during season simulations.
+ */
+export function assignOptimalRoster(
+  roster: Player[],
+  slots: RosterSlot[],
+  valueForPlayer: (player: Player) => number,
+): RosterAssignment {
+  if (slots.length === 0) return { starters: [], bench: [...roster], openSlots: [] };
+  const rowCount = slots.length;
+  const columnCount = roster.length + rowCount;
+  const fillBonus = 1_000_000;
+  const forbidden = 1_000_000_000_000;
+  const costs = Array.from({ length: rowCount }, (_, slotIndex) =>
+    Array.from({ length: columnCount }, (_, columnIndex) => {
+      if (columnIndex >= roster.length) return 0;
+      const player = roster[columnIndex];
+      const eligible = player.positions.some((position) =>
+        slots[slotIndex].eligiblePositions.includes(position),
+      );
+      return eligible ? -(fillBonus + valueForPlayer(player)) : forbidden;
+    }),
+  );
+  const u = Array(rowCount + 1).fill(0);
+  const v = Array(columnCount + 1).fill(0);
+  const matchedRowForColumn = Array(columnCount + 1).fill(0);
+  const path = Array(columnCount + 1).fill(0);
+  for (let row = 1; row <= rowCount; row += 1) {
+    matchedRowForColumn[0] = row;
+    let column = 0;
+    const minimum = Array(columnCount + 1).fill(Number.POSITIVE_INFINITY);
+    const used = Array(columnCount + 1).fill(false);
+    do {
+      used[column] = true;
+      const currentRow = matchedRowForColumn[column];
+      let delta = Number.POSITIVE_INFINITY;
+      let nextColumn = 0;
+      for (let candidate = 1; candidate <= columnCount; candidate += 1) {
+        if (used[candidate]) continue;
+        const reduced = costs[currentRow - 1][candidate - 1] - u[currentRow] - v[candidate];
+        if (reduced < minimum[candidate]) {
+          minimum[candidate] = reduced;
+          path[candidate] = column;
+        }
+        if (minimum[candidate] < delta) {
+          delta = minimum[candidate];
+          nextColumn = candidate;
+        }
+      }
+      for (let candidate = 0; candidate <= columnCount; candidate += 1) {
+        if (used[candidate]) {
+          u[matchedRowForColumn[candidate]] += delta;
+          v[candidate] -= delta;
+        } else {
+          minimum[candidate] -= delta;
+        }
+      }
+      column = nextColumn;
+    } while (matchedRowForColumn[column] !== 0);
+    do {
+      const previous = path[column];
+      matchedRowForColumn[column] = matchedRowForColumn[previous];
+      column = previous;
+    } while (column !== 0);
+  }
+  const slotToPlayer = new Map<number, number>();
+  for (let column = 1; column <= columnCount; column += 1) {
+    const row = matchedRowForColumn[column];
+    if (row === 0 || column > roster.length) continue;
+    if (costs[row - 1][column - 1] >= forbidden) continue;
+    slotToPlayer.set(row - 1, column - 1);
+  }
+  const assignedPlayerIndexes = new Set(slotToPlayer.values());
+
+  return {
+    starters: [...slotToPlayer.entries()]
+      .sort(([slotA], [slotB]) => slotA - slotB)
+      .map(([slotIndex, playerIndex]) => ({
+        slot: slots[slotIndex],
+        player: roster[playerIndex],
+      })),
+    bench: roster.filter((_, index) => !assignedPlayerIndexes.has(index)),
+    openSlots: slots.filter((_, slotIndex) => !slotToPlayer.has(slotIndex)),
+  };
+}
+
 export function assessCandidateRosterFit(
   roster: Player[],
   candidate: Player,

@@ -134,7 +134,8 @@ test("imports UDK ranks and tiers as position-specific values", () => {
   assert.equal(bowers.upside, 0.98);
   assert.equal(bowers.sourceAdp, "3.04");
   assert.equal(bowers.sourceProjectedPoints, 260.3);
-  assert.deepEqual(bowers.projectedStats, {});
+  assert.deepEqual(bowers.projectedStats, bowersBefore.projectedStats);
+  assert.equal(bowers.projectionProvenance?.mode, "raw-league-scored");
   assert.equal(bowers.rankingSource, "Fantasy Footballers UDK");
   assert.equal(bowers.userRank, bowersBefore.userRank);
   assert.equal(bowers.adp, bowersBefore.adp);
@@ -201,8 +202,10 @@ test("imports Yahoo ADP without changing personal rankings or UDK data", () => {
   assert.equal(bijan.yahooAdpRecent, 1.6);
   assert.equal(bijan.yahooPercentDrafted, 100);
   assert.equal(bijan.externalIds?.yahoo, "40055");
-  assert.equal(getMarketAdp(bijan, 8), 1.6);
-  assert.equal(getMarketAdpSource(bijan), "Yahoo last 7 days");
+  assert.ok(getMarketAdp(bijan, 8) > 1.6 && getMarketAdp(bijan, 8) < 1.8);
+  assert.equal(getMarketAdpSource(bijan), "Yahoo blended");
+  assert.equal(bijan.yahooAdpAllUpdatedAt, "2026-08-09T12:00:00.000Z");
+  assert.equal(bijan.yahooAdpRecentUpdatedAt, "2026-08-09T12:00:00.000Z");
   assert.equal(clearYahooAdp(imported).find((player) => player.id === "bijan")?.yahooAdpRecent, undefined);
   assert.match(YAHOO_ADP_BOOKMARKLET, /^javascript:/);
   assert.match(YAHOO_ADP_BOOKMARKLET, /All Drafts ADP/);
@@ -236,8 +239,8 @@ test("finds Yahoo column headers beneath the grouped table heading", () => {
 test("audits modeled settings and flags unsupported projection coverage", () => {
   const baseline = auditLeagueSettings(demoLeague, demoPlayers);
   assert.deepEqual(auditSummary(baseline), {
-    modeled: 5,
-    warnings: 1,
+    modeled: 7,
+    warnings: 2,
     errors: 0,
   });
 
