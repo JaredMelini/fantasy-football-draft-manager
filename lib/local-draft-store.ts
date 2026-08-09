@@ -7,6 +7,7 @@ import {
 } from "./offline-package";
 import {
   hasLegacyStarterProjection,
+  isLegacyStarterPlayer,
   isSyntheticDemoPlayer,
 } from "./sample-data";
 
@@ -31,7 +32,14 @@ function removeSyntheticDemoPlayers(
   value: OfflineDraftPackage,
 ): OfflineDraftPackage {
   const removedPlayerIds = new Set(
-    value.players.filter(isSyntheticDemoPlayer).map((player) => player.id),
+    value.players
+      .filter(
+        (player) =>
+          isSyntheticDemoPlayer(player) ||
+          (isLegacyStarterPlayer(player) &&
+            player.rankingSource !== "Fantasy Footballers UDK"),
+      )
+      .map((player) => player.id),
   );
   const leagueWasDemo = value.league.id === "demo-2026";
   const hasLegacyProjections = value.players.some(hasLegacyStarterProjection);

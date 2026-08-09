@@ -193,7 +193,7 @@ export function DraftManagerApp() {
                 saveState({ players: nextPlayers })
               }
               onReset={() =>
-                saveState({ players: createDefaultOfflinePackage().players })
+                saveState({ players: [], events: [] })
               }
               onRunBusyTask={runBusyTask}
             />

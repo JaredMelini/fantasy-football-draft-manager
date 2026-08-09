@@ -226,16 +226,19 @@ function buildDepthPlayers(): Player[] {
   );
 }
 
-export const starterPlayers: Player[] = featuredPlayers.map((player) => ({
-  ...player,
-  projectedStats: {},
-}));
+export const starterPlayers: Player[] = [];
 
-const starterPlayerIds = new Set(starterPlayers.map((player) => player.id));
+const legacyStarterPlayerIds = new Set(
+  featuredPlayers.map((player) => player.id),
+);
+
+export function isLegacyStarterPlayer(player: Player): boolean {
+  return legacyStarterPlayerIds.has(player.id);
+}
 
 export function hasLegacyStarterProjection(player: Player): boolean {
   return (
-    starterPlayerIds.has(player.id) &&
+    isLegacyStarterPlayer(player) &&
     Object.keys(player.projectedStats).length > 0
   );
 }

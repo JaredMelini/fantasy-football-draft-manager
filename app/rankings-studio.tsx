@@ -600,7 +600,7 @@ export function RankingsStudio({
               <span className="sr-only">Search players</span>
               <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search player, team, position" />
             </label>
-            <Button variant="outline" size="sm" onClick={() => void onRunBusyTask("Restoring starter rankings", onReset)}>Restore starter rankings</Button>
+            <Button variant="outline" size="sm" disabled={players.length === 0} onClick={() => void onRunBusyTask("Clearing rankings and draft picks", onReset)}>Clear all rankings</Button>
           </div>
           <div className="position-tabs" aria-label="Ranking position">
             {positions.map((item) => (

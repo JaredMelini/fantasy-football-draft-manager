@@ -130,7 +130,8 @@ export function DraftRoom({
       ),
     [effectiveTeamCount, league, players],
   );
-  const draftComplete = picks.length >= maximumPicks;
+  const rankingsNeeded = maximumPicks === 0;
+  const draftComplete = !rankingsNeeded && picks.length >= maximumPicks;
   const currentOverall = picks.length + 1;
   const currentRound = roundForOverallPick(currentOverall, effectiveTeamCount);
   const currentTeam = draftComplete
@@ -438,14 +439,18 @@ export function DraftRoom({
           <p>{league.teamCount} teams · {league.scoringLabel} · {draftSlotLabel}</p>
         </div>
         <div className={`pick-clock ${draftComplete ? "complete" : ""}`} aria-live="polite">
-          <span>{draftComplete ? "Draft complete" : "On the clock"}</span>
+          <span>{rankingsNeeded ? "Rankings needed" : draftComplete ? "Draft complete" : "On the clock"}</span>
           <strong>
-            {draftComplete
+            {rankingsNeeded
+              ? "Import your UDK files"
+              : draftComplete
               ? `${picks.length} picks recorded`
               : `${currentTeam.name} · ${currentRound}.${((currentOverall - 1) % effectiveTeamCount) + 1}`}
           </strong>
           <small>
-            {draftComplete
+            {rankingsNeeded
+              ? "Open Rankings to build the player board"
+              : draftComplete
               ? "Open Mock Lab for replay and evaluation"
               : currentTeam.isUser
                 ? "Your recommendation is ready"
@@ -486,7 +491,7 @@ export function DraftRoom({
       <div className="workspace-grid" id="draft-room">
         <section className="recommendation-panel panel">
           <div className="section-heading">
-            <div><p className="eyebrow">{isReviewingAlternative ? "Reviewing alternative" : "Best decision now"}</p><h2>{selected?.player.name ?? "Session complete"}</h2></div>
+            <div><p className="eyebrow">{isReviewingAlternative ? "Reviewing alternative" : "Best decision now"}</p><h2>{selected?.player.name ?? (rankingsNeeded ? "Import rankings to begin" : "Session complete")}</h2></div>
             <div className="recommendation-heading-actions">
               {selected && <span className="score-badge" title="Unified best-overall grade">{selected.breakdown.total}</span>}
               {isReviewingAlternative && (
@@ -586,7 +591,7 @@ export function DraftRoom({
               </Button>
             </>
           ) : (
-            <p className="empty-state-copy">Every active player has been assigned. The immutable event log is ready to replay.</p>
+            <p className="empty-state-copy">{rankingsNeeded ? "Your player board is empty. Import the UDK position files in Rankings before starting a draft." : "Every active player has been assigned. The immutable event log is ready to replay."}</p>
           )}
 
           <div className="alternatives">

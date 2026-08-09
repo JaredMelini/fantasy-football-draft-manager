@@ -110,7 +110,7 @@ export function OfflineBridge({
           <div className="backup-actions">
             <Button size="sm" onClick={exportPackage}>Download backup</Button>
             <label className="secondary-button file-button">Import backup<input type="file" accept="application/json,.json" onChange={(event) => importFile(event.target.files?.[0])} /></label>
-            <Button variant="ghost" size="sm" onClick={onReset}>Restore demo data</Button>
+            <Button variant="ghost" size="sm" onClick={onReset}>Reset local data</Button>
           </div>
           {message && <p className="bridge-message" aria-live="polite">{message}</p>}
         </section>

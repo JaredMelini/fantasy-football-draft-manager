@@ -63,25 +63,10 @@ test("round-trips a complete portable offline package", () => {
   assert.equal(parsed.events.length, original.events.length);
 });
 
-test("default local rankings exclude synthetic depth players", () => {
+test("default local player board starts empty", () => {
   const state = createDefaultOfflinePackage();
 
-  assert.equal(
-    state.players.some((player) => player.id.startsWith("demo-")),
-    false,
-  );
-  assert.equal(
-    state.players.some(
-      (player) => Object.keys(player.projectedStats).length > 0,
-    ),
-    false,
-  );
-  assert.equal(
-    state.players.some(
-      (player) => player.sourceProjectedPoints !== undefined,
-    ),
-    false,
-  );
+  assert.deepEqual(state.players, []);
 });
 
 test("rejects unknown or incomplete package formats", () => {
