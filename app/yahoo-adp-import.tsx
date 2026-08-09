@@ -237,7 +237,10 @@ export function YahooAdpImport({
           Open Yahoo Draft Analysis, choose a position, wait until player names
           and ADP values appear, then click the bookmark.
         </li>
-        <li>Repeat for each position and select all downloaded CSVs below.</li>
+        <li>
+          Return here, paste the copied data below, review it, and apply it.
+          Repeat for each position.
+        </li>
       </ol>
       <div className="yahoo-adp-actions">
         <Button variant="outline" size="sm" onClick={() => void copyBookmarklet()}>
@@ -280,8 +283,8 @@ export function YahooAdpImport({
         </strong>
         <small>QB, RB, WR, TE, K, and DEF can be applied together</small>
       </label>
-      <details className="yahoo-paste-details">
-        <summary>Paste exporter data instead</summary>
+      <details className="yahoo-paste-details" open>
+        <summary>Paste Yahoo ADP from bookmarklet</summary>
         <textarea
           aria-label="Paste Yahoo ADP CSV or TSV"
           value={pasteValue}

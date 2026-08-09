@@ -212,6 +212,7 @@ test("imports Yahoo ADP without changing personal rankings or UDK data", () => {
   assert.match(YAHOO_ADP_BOOKMARKLET, /^javascript:\(async\(\)=>/);
   assert.match(YAHOO_ADP_BOOKMARKLET, /All Drafts ADP/);
   assert.doesNotMatch(YAHOO_ADP_BOOKMARKLET, /a\?\.textContent/);
+  assert.doesNotMatch(YAHOO_ADP_BOOKMARKLET, /new Blob/);
   assert.match(YAHOO_ADP_BOOKMARKLET, /\.catch\(error=>alert\(/);
   assert.match(YAHOO_ADP_BOOKMARKLET, /;void 0$/);
 });
@@ -236,7 +237,7 @@ test("extracts a player from Yahoo's current div-based player cell", () => {
   });
 });
 
-test("the installed Yahoo bookmarklet creates a populated CSV download", () => {
+test("the Yahoo bookmarklet copies populated CSV and has a prompt fallback", async () => {
   const headers = [
     "Player",
     "Rank",
@@ -280,38 +281,17 @@ test("the installed Yahoo bookmarklet creates a populated CSV download", () => {
       return [];
     },
   };
-  let downloadClicked = false;
-  const anchor = {
-    href: "",
-    download: "",
-    click: () => {
-      downloadClicked = true;
-    },
-  };
   const documentMock = {
     querySelectorAll: () => [table],
-    createElement: () => anchor,
   };
   const alerts: string[] = [];
-  let exportedCsv = "";
-  class TestBlob {
-    constructor(parts: string[]) {
-      exportedCsv = parts.join("");
-    }
-  }
-  class TestUrl extends URL {
-    static createObjectURL() {
-      return "blob:yahoo-adp-test";
-    }
-
-    static revokeObjectURL() {}
-  }
+  const prompts: string[] = [];
+  let copiedCsv = "";
   const runBookmarklet = Function(
     "document",
     "alert",
-    "Blob",
-    "URL",
-    "location",
+    "navigator",
+    "prompt",
     "setTimeout",
     YAHOO_ADP_BOOKMARKLET.slice("javascript:".length),
   );
@@ -319,16 +299,40 @@ test("the installed Yahoo bookmarklet creates a populated CSV download", () => {
   runBookmarklet(
     documentMock,
     (message: string) => alerts.push(message),
-    TestBlob,
-    TestUrl,
-    { href: "https://football.fantasysports.yahoo.com/f1/595211/draftanalysis?pos=ALL" },
+    {
+      clipboard: {
+        writeText: async (value: string) => {
+          copiedCsv = value;
+        },
+      },
+    },
+    (_message: string, value: string) => prompts.push(value),
     (callback: () => void) => callback(),
   );
+  await Promise.resolve();
+  await Promise.resolve();
 
-  assert.equal(downloadClicked, true);
-  assert.match(anchor.download, /^yahoo-adp-all-\d{4}-\d{2}-\d{2}\.csv$/);
-  assert.match(exportedCsv, /"40059","Jahmyr Gibbs","DET","RB"/);
-  assert.deepEqual(alerts, []);
+  assert.match(copiedCsv, /"40059","Jahmyr Gibbs","DET","RB"/);
+  assert.match(alerts[0], /Copied 1 Yahoo ADP rows/);
+  assert.deepEqual(prompts, []);
+
+  runBookmarklet(
+    documentMock,
+    (message: string) => alerts.push(message),
+    {
+      clipboard: {
+        writeText: async () => {
+          throw new Error("Clipboard blocked");
+        },
+      },
+    },
+    (_message: string, value: string) => prompts.push(value),
+    (callback: () => void) => callback(),
+  );
+  await Promise.resolve();
+  await Promise.resolve();
+
+  assert.match(prompts[0], /"40059","Jahmyr Gibbs","DET","RB"/);
 });
 
 test("requires review for unmatched Yahoo ADP rows", () => {
