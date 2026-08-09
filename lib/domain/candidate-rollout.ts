@@ -4,7 +4,12 @@ import {
   calculateFantasyPoints,
   estimateDynamicReplacementBaselines,
 } from "./scoring";
-import { getMarketAdp, getPositionRank, getPositionRankValue } from "./rankings";
+import {
+  getMarketAdp,
+  getPositionRank,
+  getPositionRankValue,
+  primaryPosition,
+} from "./rankings";
 import type {
   DraftPick,
   DraftTeam,
@@ -318,12 +323,181 @@ function bestBy(
   return [...summaries].sort((a, b) => score(b) - score(a))[0];
 }
 
+function selectRolloutCandidates(
+  recommendations: PlayerRecommendation[],
+  candidateLimit: number,
+): PlayerRecommendation[] {
+  const selected: PlayerRecommendation[] = [];
+  const selectedIds = new Set<string>();
+  const add = (recommendation: PlayerRecommendation | undefined) => {
+    if (!recommendation || selectedIds.has(recommendation.player.id)) return;
+    selected.push(recommendation);
+    selectedIds.add(recommendation.player.id);
+  };
+
+  recommendations.slice(0, Math.min(4, candidateLimit)).forEach(add);
+  for (const position of ["QB", "RB", "WR", "TE"] as const) {
+    if (selected.length >= candidateLimit) break;
+    add(
+      recommendations.find(
+        (recommendation) =>
+          primaryPosition(recommendation.player) === position &&
+          recommendation.breakdown.rosterFit > 0,
+      ),
+    );
+  }
+  for (const recommendation of recommendations) {
+    if (selected.length >= candidateLimit) break;
+    add(recommendation);
+  }
+
+  return selected;
+}
+
+export function integrateRosterOutcomes(
+  recommendations: PlayerRecommendation[],
+  summaries: CandidateRolloutSummary[],
+  riskTolerance: RiskTolerance = "balanced",
+): PlayerRecommendation[] {
+  if (recommendations.length === 0 || summaries.length === 0) {
+    return recommendations;
+  }
+
+  const summaryById = new Map(
+    summaries.map((summary) => [summary.playerId, summary]),
+  );
+  const analyzed = recommendations.filter((recommendation) =>
+    summaryById.has(recommendation.player.id),
+  );
+  const immediateScores = analyzed.map(
+    (recommendation) => recommendation.breakdown.total,
+  );
+  const minimumImmediate = Math.min(...immediateScores);
+  const maximumImmediate = Math.max(...immediateScores);
+  const immediateRange = maximumImmediate - minimumImmediate;
+  const rosterWeights =
+    riskTolerance === "safe"
+      ? { average: 0.4, floor: 0.5, ceiling: 0.1 }
+      : riskTolerance === "upside"
+        ? { average: 0.45, floor: 0.15, ceiling: 0.4 }
+        : { average: 0.55, floor: 0.3, ceiling: 0.15 };
+  const baseIndex = new Map(
+    recommendations.map((recommendation, index) => [
+      recommendation.player.id,
+      index,
+    ]),
+  );
+  const blended = analyzed.map((recommendation) => {
+    const summary = summaryById.get(recommendation.player.id)!;
+    const immediateGrade =
+      immediateRange === 0
+        ? 85
+        : 70 +
+          ((recommendation.breakdown.total - minimumImmediate) /
+            immediateRange) *
+            30;
+    const rosterUtility =
+      summary.averageRosterGrade * rosterWeights.average +
+      summary.floorRosterGrade * rosterWeights.floor +
+      summary.ceilingRosterGrade * rosterWeights.ceiling -
+      (1 - summary.completionRate) * 25;
+    const total = round(rosterUtility * 0.65 + immediateGrade * 0.35);
+    const outcomeSpread = Math.max(
+      0,
+      summary.ceilingRosterGrade - summary.floorRosterGrade,
+    );
+    const confidence = clamp(
+      recommendation.confidence * 0.55 +
+        summary.completionRate * 0.3 +
+        Math.max(0, 1 - outcomeSpread / 25) * 0.15,
+      0.55,
+      0.93,
+    );
+
+    return {
+      ...recommendation,
+      breakdown: {
+        ...recommendation.breakdown,
+        immediateScore: recommendation.breakdown.total,
+        expectedRosterGrade: summary.averageRosterGrade,
+        rosterFloor: summary.floorRosterGrade,
+        rosterCeiling: summary.ceilingRosterGrade,
+        total,
+      },
+      confidence,
+      explanation: [
+        `Expected completed roster: ${summary.averageRosterGrade} average, ${summary.floorRosterGrade} floor, ${summary.ceilingRosterGrade} ceiling`,
+        "Best-overall grade blends 65% completed-roster outcomes with 35% live pick value",
+        ...recommendation.explanation,
+      ],
+    };
+  });
+
+  const byPosition = new Map<string, PlayerRecommendation[]>();
+  for (const recommendation of blended) {
+    const position = primaryPosition(recommendation.player);
+    byPosition.set(position, [
+      ...(byPosition.get(position) ?? []),
+      recommendation,
+    ]);
+  }
+  const guarded = [...byPosition.values()].flatMap((group) => {
+    const ordered = [...group].sort(
+      (a, b) =>
+        (baseIndex.get(a.player.id) ?? Number.POSITIVE_INFINITY) -
+        (baseIndex.get(b.player.id) ?? Number.POSITIVE_INFINITY),
+    );
+    let maximumAllowed = Number.POSITIVE_INFINITY;
+    return ordered.map((recommendation) => {
+      const total = round(
+        Math.min(recommendation.breakdown.total, maximumAllowed),
+      );
+      maximumAllowed = total - 0.1;
+      return {
+        ...recommendation,
+        breakdown: { ...recommendation.breakdown, total },
+      };
+    });
+  });
+  const guardedById = new Map(
+    guarded.map((recommendation) => [recommendation.player.id, recommendation]),
+  );
+  const sortedAnalyzed = analyzed
+    .map((recommendation) => guardedById.get(recommendation.player.id)!)
+    .sort(
+      (a, b) =>
+        b.breakdown.total - a.breakdown.total ||
+        (baseIndex.get(a.player.id) ?? 0) -
+          (baseIndex.get(b.player.id) ?? 0),
+    );
+  const minimumAnalyzedScore = Math.min(
+    ...sortedAnalyzed.map((recommendation) => recommendation.breakdown.total),
+  );
+  const remaining = recommendations
+    .filter((recommendation) => !guardedById.has(recommendation.player.id))
+    .map((recommendation, index) => ({
+      ...recommendation,
+      breakdown: {
+        ...recommendation.breakdown,
+        immediateScore: recommendation.breakdown.total,
+        total: round(
+          Math.min(
+            recommendation.breakdown.total,
+            minimumAnalyzedScore - 0.1 - index * 0.1,
+          ),
+        ),
+      },
+    }));
+
+  return [...sortedAnalyzed, ...remaining];
+}
+
 export function analyzeCandidateRollouts(
   input: CandidateRolloutInput,
 ): CandidateRolloutAnalysis {
   const simulations = Math.max(18, Math.round(input.simulationCount ?? 36));
-  const candidates = input.recommendations.slice(
-    0,
+  const candidates = selectRolloutCandidates(
+    input.recommendations,
     Math.max(4, Math.round(input.candidateLimit ?? 8)),
   );
   if (candidates.length === 0) return { summaries: [], lenses: [] };

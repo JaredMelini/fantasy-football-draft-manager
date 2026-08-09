@@ -14,7 +14,10 @@ import {
   replayDraftEvents,
   validateNextPick,
 } from "@/lib/domain/draft-session";
-import { analyzeCandidateRollouts } from "@/lib/domain/candidate-rollout";
+import {
+  analyzeCandidateRollouts,
+  integrateRosterOutcomes,
+} from "@/lib/domain/candidate-rollout";
 import { recommendPlayers } from "@/lib/domain/recommendation";
 import { assignRoster } from "@/lib/domain/roster";
 import { calculateFantasyPoints } from "@/lib/domain/scoring";
@@ -154,7 +157,7 @@ export function DraftRoom({
   const decisionOverall = currentTeam.isUser
     ? currentOverall
     : currentOverall + currentTurnOffset;
-  const recommendations = useMemo(
+  const baseRecommendations = useMemo(
     () =>
       draftComplete
         ? []
@@ -189,7 +192,7 @@ export function DraftRoom({
       draftComplete
         ? { summaries: [], lenses: [] }
         : analyzeCandidateRollouts({
-            recommendations,
+            recommendations: baseRecommendations,
             players,
             league,
             picks,
@@ -200,7 +203,7 @@ export function DraftRoom({
             seed,
             riskTolerance,
             simulationCount: 18,
-            candidateLimit: 4,
+            candidateLimit: 6,
           }),
     [
       decisionOverall,
@@ -208,13 +211,22 @@ export function DraftRoom({
       league,
       picks,
       players,
-      recommendations,
+      baseRecommendations,
       riskTolerance,
       seed,
       teams,
       userRoster,
       userTeam.id,
     ],
+  );
+  const recommendations = useMemo(
+    () =>
+      integrateRosterOutcomes(
+        baseRecommendations,
+        rolloutAnalysis.summaries,
+        riskTolerance,
+      ),
+    [baseRecommendations, riskTolerance, rolloutAnalysis.summaries],
   );
   const best = recommendations[0];
   const recommendationScores = useMemo(
@@ -262,8 +274,8 @@ export function DraftRoom({
               key: "best",
               label: "Best overall",
               playerId: best.player.id,
-              metric: `${best.breakdown.total} decision score`,
-              rationale: "Highest current decision score",
+              metric: `${best.breakdown.total} unified grade`,
+              rationale: "Strongest combined live-pick and completed-roster result",
             },
             ...rolloutAnalysis.lenses,
           ]
@@ -419,7 +431,7 @@ export function DraftRoom({
           <div className="section-heading">
             <div><p className="eyebrow">{isReviewingAlternative ? "Reviewing alternative" : "Best decision now"}</p><h2>{selected?.player.name ?? "Session complete"}</h2></div>
             <div className="recommendation-heading-actions">
-              {selected && <span className="score-badge">{selected.breakdown.total}</span>}
+              {selected && <span className="score-badge" title="Unified best-overall grade">{selected.breakdown.total}</span>}
               {isReviewingAlternative && (
                 <Button variant="ghost" size="sm" onClick={() => setSelectedPlayerId(null)}>
                   Return to best decision
@@ -481,7 +493,7 @@ export function DraftRoom({
                 {selected.explanation.map((reason) => <li key={reason}>{reason}</li>)}
               </ul>
               <div className="wait-comparison" aria-label="Draft now versus wait comparison">
-                <div><span>Draft now</span><strong>{selected.player.name}</strong><small>Lock in a {selected.breakdown.total} decision score</small></div>
+                <div><span>Draft now</span><strong>{selected.player.name}</strong><small>Lock in a {selected.breakdown.total} unified decision grade</small></div>
                 <div><span>If you wait</span><strong>{selected.waitAnalysis.expectedAlternativeName ?? "No reliable fallback"}</strong><small>{selected.waitAnalysis.opportunityLoss > 0 ? `${selected.waitAnalysis.opportunityLoss} expected score lost` : "Comparable value should remain"}</small></div>
               </div>
               {selectedRollout && (
@@ -509,6 +521,8 @@ export function DraftRoom({
                 {selected.breakdown.rankGuardrail > 0 && <div><span>Rank guardrail</span><strong>{formatSignedScore(-selected.breakdown.rankGuardrail)}</strong></div>}
                 <div><span>Upside profile</span><strong>{formatSignedScore(selected.breakdown.upsideValue)}</strong></div>
                 <div><span>Risk adjustment</span><strong>−{selected.breakdown.riskPenalty}</strong></div>
+                {selected.breakdown.immediateScore !== undefined && <div><span>Live pick score</span><strong>{selected.breakdown.immediateScore}</strong></div>}
+                {selected.breakdown.expectedRosterGrade !== undefined && <div><span>Expected roster</span><strong>{selected.breakdown.expectedRosterGrade}</strong></div>}
               </div>
               <Button className="w-full" onClick={() => logPick(selected.player.id)}>
                 {currentTeam.isUser ? "Draft to my team" : `Log for ${currentTeam.name}`}
@@ -629,8 +643,8 @@ export function DraftRoom({
       </section>
 
       <section className="plan-banner" id="plan">
-        <div><p className="eyebrow">Decision Engine v2</p><h2>Know when to take the player—and when you can wait.</h2></div>
-        <p>Every recommendation now combines live replacement value, your roster, market timing, opponent needs, positional runs, and deterministic wait scenarios. Yahoo synchronization can feed this same model when access is approved.</p>
+        <div><p className="eyebrow">Decision Engine v3</p><h2>Optimize the finished roster, not just the next pick.</h2></div>
+        <p>Best Overall blends completed-roster simulations with your rankings, roster constraints, live replacement value, market timing, opponent needs, and wait scenarios. The risk profile shifts the balance between average, floor, and ceiling outcomes.</p>
       </section>
     </>
   );

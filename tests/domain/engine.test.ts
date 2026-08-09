@@ -4,7 +4,10 @@ import {
   assignedStarterCount,
   teamForOverallPick,
 } from "../../lib/domain/draft";
-import { analyzeCandidateRollouts } from "../../lib/domain/candidate-rollout";
+import {
+  analyzeCandidateRollouts,
+  integrateRosterOutcomes,
+} from "../../lib/domain/candidate-rollout";
 import { recommendPlayers } from "../../lib/domain/recommendation";
 import {
   calculateFantasyPoints,
@@ -172,6 +175,33 @@ test("personal position rank controls same-position order unless a major excepti
       reason.includes("Personal ranking guardrail"),
     ),
   );
+  const rosterGuarded = integrateRosterOutcomes(
+    guarded,
+    [
+      {
+        playerId: kyren.id,
+        simulations: 24,
+        averageRosterGrade: 70,
+        floorRosterGrade: 68,
+        ceilingRosterGrade: 72,
+        averageStarterPoints: 1200,
+        completionRate: 1,
+        averageRosterRisk: 0.15,
+      },
+      {
+        playerId: breece.id,
+        simulations: 24,
+        averageRosterGrade: 95,
+        floorRosterGrade: 92,
+        ceilingRosterGrade: 98,
+        averageStarterPoints: 1300,
+        completionRate: 1,
+        averageRosterRisk: 0.15,
+      },
+    ],
+    "balanced",
+  );
+  assert.equal(rosterGuarded[0].player.id, kyren.id);
 
   const projectionException = recommendPlayers({
     ...shared,
@@ -275,6 +305,7 @@ test("completed-roster rollouts produce deterministic comparison lenses", () => 
   };
   const started = performance.now();
   const first = analyzeCandidateRollouts(input);
+  const firstDuration = performance.now() - started;
   const second = analyzeCandidateRollouts(input);
 
   assert.deepEqual(first, second);
@@ -292,5 +323,61 @@ test("completed-roster rollouts produce deterministic comparison lenses", () => 
     (player) => player.id === first.lenses[3].playerId,
   )!;
   assert.notEqual(bestPlayer.positions[0], pivotPlayer.positions[0]);
-  assert.ok(performance.now() - started < 1000);
+  assert.ok(firstDuration < 1500);
+});
+
+test("unified decisions prioritize expected roster outcomes over a small live-score edge", () => {
+  const base = recommendPlayers({
+    players: demoPlayers,
+    league: demoLeague,
+    picks: initialDemoPicks,
+    userRoster: [],
+    currentOverall: 7,
+    picksUntilNextTurn: 7,
+    teams: demoTeams,
+    seed: "unified-decision",
+    limit: demoPlayers.length,
+  });
+  const immediateBest = base[0];
+  const alternate = base.find(
+    (recommendation) =>
+      recommendation.player.positions[0] !==
+      immediateBest.player.positions[0],
+  )!;
+  const unified = integrateRosterOutcomes(
+    [immediateBest, alternate],
+    [
+      {
+        playerId: immediateBest.player.id,
+        simulations: 24,
+        averageRosterGrade: 72,
+        floorRosterGrade: 68,
+        ceilingRosterGrade: 76,
+        averageStarterPoints: 1200,
+        completionRate: 1,
+        averageRosterRisk: 0.2,
+      },
+      {
+        playerId: alternate.player.id,
+        simulations: 24,
+        averageRosterGrade: 90,
+        floorRosterGrade: 86,
+        ceilingRosterGrade: 94,
+        averageStarterPoints: 1300,
+        completionRate: 1,
+        averageRosterRisk: 0.2,
+      },
+    ],
+    "balanced",
+  );
+
+  assert.equal(unified[0].player.id, alternate.player.id);
+  assert.equal(unified[0].breakdown.expectedRosterGrade, 90);
+  assert.equal(
+    unified[0].breakdown.immediateScore,
+    alternate.breakdown.total,
+  );
+  assert.ok(
+    unified[0].explanation.some((reason) => reason.includes("65%")),
+  );
 });

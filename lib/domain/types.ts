@@ -154,6 +154,10 @@ export interface RecommendationBreakdown {
   rankGuardrail: number;
   upsideValue: number;
   riskPenalty: number;
+  immediateScore?: number;
+  expectedRosterGrade?: number;
+  rosterFloor?: number;
+  rosterCeiling?: number;
   total: number;
 }
 

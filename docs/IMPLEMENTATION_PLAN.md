@@ -421,3 +421,4 @@ Official references: [Yahoo Fantasy API documentation](https://sports.yahoo.com/
 - [x] Roster-construction guardrails distinguish dedicated starter needs from FLEX-only duplicates, preventing early backup QB/TE/K/DST recommendations while core lineup needs remain.
 - [x] Personal-ranking guardrails preserve the user-defined order within each position; only documented projection, safety, or upside exceptions can promote a lower-ranked player.
 - [x] Recommendation labels separate the primary decision score from completed-roster simulations, with explicit alternative-review state and a return-to-best control.
+- [x] Decision Engine v3 unifies live-pick value with risk-adjusted completed-roster outcomes, using position-diverse candidate simulations while retaining personal-rank and roster-construction guardrails.
