@@ -419,3 +419,4 @@ Official references: [Yahoo Fantasy API documentation](https://sports.yahoo.com/
 - [ ] Add projections for bonus-play, return, kicker-distance, and DST points-allowed categories, or use a licensed source-projected total that already reflects these rules.
 - [x] Interactive performance pass: memoized decision analysis, deferred search filtering, batched local persistence, lighter mock simulations, and blocking progress feedback for long actions.
 - [x] Roster-construction guardrails distinguish dedicated starter needs from FLEX-only duplicates, preventing early backup QB/TE/K/DST recommendations while core lineup needs remain.
+- [x] Personal-ranking guardrails preserve the user-defined order within each position; only documented projection, safety, or upside exceptions can promote a lower-ranked player.

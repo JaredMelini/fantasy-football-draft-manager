@@ -474,6 +474,7 @@ export function DraftRoom({
                 <div><span>Wait urgency</span><strong>{formatSignedScore(selected.breakdown.availabilityUrgency)}</strong></div>
                 <div><span>Opponent pressure</span><strong>{formatSignedScore(selected.breakdown.opponentDemand)}</strong></div>
                 <div><span>Wait opportunity</span><strong>{formatSignedScore(selected.breakdown.opportunityCost)}</strong></div>
+                {selected.breakdown.rankGuardrail > 0 && <div><span>Rank guardrail</span><strong>{formatSignedScore(-selected.breakdown.rankGuardrail)}</strong></div>}
                 <div><span>Upside profile</span><strong>{formatSignedScore(selected.breakdown.upsideValue)}</strong></div>
                 <div><span>Risk adjustment</span><strong>−{selected.breakdown.riskPenalty}</strong></div>
               </div>

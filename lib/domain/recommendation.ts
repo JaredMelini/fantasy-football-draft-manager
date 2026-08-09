@@ -21,6 +21,7 @@ import type {
   DraftTeam,
   LeagueSettings,
   Player,
+  PlayerPosition,
   PlayerRecommendation,
   RecommendationDecision,
   RiskTolerance,
@@ -221,6 +222,156 @@ function simulateWaiting(input: {
   };
 }
 
+function rankOverrideReason(
+  candidate: PlayerRecommendation,
+  higherRanked: PlayerRecommendation,
+  analysisById: Map<string, CandidateAnalysis>,
+  players: Player[],
+  riskTolerance: RiskTolerance,
+): string | null {
+  const candidateAnalysis = analysisById.get(candidate.player.id)!;
+  const higherAnalysis = analysisById.get(higherRanked.player.id)!;
+  const position = primaryPosition(candidate.player);
+  const candidateRank = getPositionRank(candidate.player, players, position);
+  const higherRank = getPositionRank(higherRanked.player, players, position);
+  const projectionEdge =
+    candidateAnalysis.projectedPoints - higherAnalysis.projectedPoints;
+  const significantProjectionEdge = Math.max(
+    18,
+    higherAnalysis.projectedPoints * 0.06,
+  );
+
+  if (projectionEdge >= significantProjectionEdge) {
+    return `Rank exception: ${position}${candidateRank} projects ${round(projectionEdge)} league points above ${position}${higherRank} ${higherRanked.player.name}`;
+  }
+
+  const riskEdge = higherRanked.player.risk - candidate.player.risk;
+  if (
+    riskTolerance === "safe" &&
+    riskEdge >= 0.18 &&
+    projectionEdge >= -10
+  ) {
+    return `Rank exception: ${position}${candidateRank} has a substantially safer profile than ${position}${higherRank} ${higherRanked.player.name}`;
+  }
+
+  const upsideEdge =
+    (candidate.player.upside ?? 0.5) -
+    (higherRanked.player.upside ?? 0.5);
+  if (
+    riskTolerance === "upside" &&
+    upsideEdge >= 0.2 &&
+    projectionEdge >= -10
+  ) {
+    return `Rank exception: ${position}${candidateRank} has a substantially stronger upside profile than ${position}${higherRank} ${higherRanked.player.name}`;
+  }
+
+  return null;
+}
+
+function applyPersonalRankingGuardrails(
+  recommendations: PlayerRecommendation[],
+  analyses: CandidateAnalysis[],
+  players: Player[],
+  riskTolerance: RiskTolerance,
+): PlayerRecommendation[] {
+  const analysisById = new Map(
+    analyses.map((analysis) => [analysis.player.id, analysis]),
+  );
+  const byPosition = new Map<PlayerPosition, PlayerRecommendation[]>();
+
+  for (const recommendation of recommendations) {
+    const position = primaryPosition(recommendation.player);
+    byPosition.set(position, [
+      ...(byPosition.get(position) ?? []),
+      recommendation,
+    ]);
+  }
+
+  return [...byPosition.entries()].flatMap(([position, group]) => {
+    const remaining = [...group].sort(
+      (a, b) =>
+        getPositionRank(a.player, players, position) -
+          getPositionRank(b.player, players, position) ||
+        a.player.name.localeCompare(b.player.name),
+    );
+    const ordered: PlayerRecommendation[] = [];
+    const exceptionReasons = new Map<string, string>();
+
+    while (remaining.length > 0) {
+      const highestRanked = remaining[0];
+      const eligibleReasons = new Map<string, string>();
+      const eligible = remaining.filter((recommendation, index) => {
+        if (index === 0) return true;
+        const reason = rankOverrideReason(
+          recommendation,
+          highestRanked,
+          analysisById,
+          players,
+          riskTolerance,
+        );
+        if (reason) eligibleReasons.set(recommendation.player.id, reason);
+        return Boolean(reason);
+      });
+      const selected = [...eligible].sort(
+        (a, b) =>
+          b.breakdown.total - a.breakdown.total ||
+          getPositionRank(a.player, players, position) -
+            getPositionRank(b.player, players, position),
+      )[0];
+      const selectedException = eligibleReasons.get(selected.player.id);
+      if (selectedException) {
+        exceptionReasons.set(selected.player.id, selectedException);
+      }
+      ordered.push(selected);
+      remaining.splice(
+        remaining.findIndex(
+          (recommendation) => recommendation.player.id === selected.player.id,
+        ),
+        1,
+      );
+    }
+
+    let maximumAllowedScore = Number.POSITIVE_INFINITY;
+    return ordered.map((recommendation, index) => {
+      const rawTotal = recommendation.breakdown.total;
+      const adjustedTotal = round(
+        Math.min(rawTotal, maximumAllowedScore),
+      );
+      const rankGuardrail = round(Math.max(0, rawTotal - adjustedTotal));
+      maximumAllowedScore = adjustedTotal - 0.1;
+      const explanation = [...recommendation.explanation];
+      const exceptionReason = exceptionReasons.get(recommendation.player.id);
+
+      if (exceptionReason) explanation.unshift(exceptionReason);
+      if (rankGuardrail > 0) {
+        const blocker = ordered
+          .slice(0, index)
+          .reverse()
+          .find(
+            (higher) =>
+              getPositionRank(higher.player, players, position) <
+              getPositionRank(recommendation.player, players, position),
+          );
+        if (blocker) {
+          explanation.unshift(
+            `Personal ranking guardrail keeps ${position}${getPositionRank(recommendation.player, players, position)} behind available ${position}${getPositionRank(blocker.player, players, position)} ${blocker.player.name}`,
+          );
+        }
+      }
+
+      return {
+        ...recommendation,
+        breakdown: {
+          ...recommendation.breakdown,
+          rankGuardrail,
+          total: adjustedTotal,
+        },
+        explanation,
+      };
+    });
+  });
+}
+
 export function recommendPlayers({
   players,
   league,
@@ -343,7 +494,7 @@ export function recommendPlayers({
     };
   });
 
-  return candidates
+  const scoredRecommendations = candidates
     .map((candidate): PlayerRecommendation => {
       const wait = simulateWaiting({
         candidate,
@@ -384,6 +535,7 @@ export function recommendPlayers({
           availabilityUrgency: round(candidate.availabilityUrgency),
           opponentDemand: round(candidate.opponentDemand),
           opportunityCost: round(opportunityCost),
+          rankGuardrail: 0,
           upsideValue: round(candidate.upsideValue),
           riskPenalty: round(candidate.riskPenalty),
           total: round(total),
@@ -408,7 +560,14 @@ export function recommendPlayers({
           fallback,
         ],
       };
-    })
+    });
+
+  return applyPersonalRankingGuardrails(
+    scoredRecommendations,
+    candidates,
+    players,
+    riskTolerance,
+  )
     .sort(
       (a, b) =>
         b.breakdown.total - a.breakdown.total ||

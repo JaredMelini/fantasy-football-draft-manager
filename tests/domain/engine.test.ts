@@ -117,6 +117,84 @@ test("does not recommend an immediate second tight end over open starter needs",
   );
 });
 
+test("personal position rank controls same-position order unless a major exception exists", () => {
+  const template = demoPlayers.find((player) => player.id === "bijan")!;
+  const kyren = {
+    ...template,
+    id: "kyren-test",
+    name: "Kyren Williams",
+    adp: 100,
+    positionRanks: { RB: 14 },
+    positionTiers: { RB: 4 },
+    risk: 0.15,
+    upside: 0.6,
+    projectedStats: {
+      rushingYards: 1000,
+      rushingTouchdowns: 8,
+      receptions: 50,
+      receivingYards: 400,
+      receivingTouchdowns: 3,
+    },
+  };
+  const breece = {
+    ...kyren,
+    id: "breece-test",
+    name: "Breece Hall",
+    adp: 1,
+    positionRanks: { RB: 17 },
+    projectedStats: {
+      ...kyren.projectedStats,
+      rushingYards: 1100,
+    },
+  };
+  const shared = {
+    league: yahooLeague,
+    picks: [],
+    userRoster: [],
+    currentOverall: 17,
+    picksUntilNextTurn: 15,
+    teams: buildDemoTeams(yahooLeague.teamCount, 1),
+    seed: "position-rank-guardrail",
+    limit: 2,
+  };
+  const guarded = recommendPlayers({
+    ...shared,
+    players: [kyren, breece],
+  });
+  const guardedBreece = guarded.find(
+    ({ player }) => player.id === breece.id,
+  )!;
+
+  assert.equal(guarded[0].player.id, kyren.id);
+  assert.ok(guardedBreece.breakdown.rankGuardrail > 0);
+  assert.ok(
+    guardedBreece.explanation.some((reason) =>
+      reason.includes("Personal ranking guardrail"),
+    ),
+  );
+
+  const projectionException = recommendPlayers({
+    ...shared,
+    players: [
+      kyren,
+      {
+        ...breece,
+        projectedStats: {
+          ...breece.projectedStats,
+          rushingYards: 1400,
+        },
+      },
+    ],
+  });
+
+  assert.equal(projectionException[0].player.id, breece.id);
+  assert.ok(
+    projectionException[0].explanation.some((reason) =>
+      reason.includes("Rank exception"),
+    ),
+  );
+});
+
 test("advanced recommendations model live baselines, opponents, and deterministic wait scenarios", () => {
   const baselines = estimateDynamicReplacementBaselines(
     demoPlayers,

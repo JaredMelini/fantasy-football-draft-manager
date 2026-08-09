@@ -151,6 +151,7 @@ export interface RecommendationBreakdown {
   availabilityUrgency: number;
   opponentDemand: number;
   opportunityCost: number;
+  rankGuardrail: number;
   upsideValue: number;
   riskPenalty: number;
   total: number;
