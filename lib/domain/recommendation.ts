@@ -16,8 +16,8 @@ import {
   primaryPosition,
 } from "./rankings";
 import {
-  applyEndgameRosterPlan,
-  getEndgameRosterPlan,
+  applyRosterCompletionPlan,
+  getRosterCompletionPlan,
 } from "./endgame";
 import { assessCandidateRosterFit } from "./roster";
 import type {
@@ -397,6 +397,7 @@ export function recommendPlayers({
 
   const baselines = estimateDynamicReplacementBaselines(players, league, picks);
   const filledBefore = assignedStarterCount(userRoster, league.rosterSlots);
+  const completionPlan = getRosterCompletionPlan(userRoster, league);
   const nextUserPick = currentOverall + picksUntilNextTurn;
   const spread = Math.max(4, league.teamCount / 2);
   const opponentContexts = buildOpponentTurnContexts({
@@ -427,7 +428,18 @@ export function recommendPlayers({
       league.rosterSlots,
       filledBefore,
     );
-    const rosterFit = rosterConstruction.score;
+    const canWaitOnSingleStarter =
+      completionPlan.mode !== "force-starters" &&
+      (rankingPosition === "QB" || rankingPosition === "TE") &&
+      !userRoster.some((rostered) =>
+        rostered.positions.includes(rankingPosition),
+      );
+    const rosterFit = canWaitOnSingleStarter
+      ? Math.min(rosterConstruction.score, 1.5)
+      : rosterConstruction.score;
+    const rosterFitReason = canWaitOnSingleStarter
+      ? `${rankingPosition} is still open, but enough later picks remain to wait for value`
+      : rosterConstruction.reason;
     const samePosition = available
       .filter(
         (candidate) =>
@@ -493,7 +505,7 @@ export function recommendPlayers({
       recentPositionRun: run,
       upsideValue,
       riskPenalty,
-      rosterFitReason: rosterConstruction.reason,
+      rosterFitReason,
       baseTotal,
     };
   });
@@ -577,26 +589,27 @@ export function recommendPlayers({
         b.breakdown.total - a.breakdown.total ||
         getPositionRank(a.player, players) - getPositionRank(b.player, players),
     );
-  const endgamePlan = getEndgameRosterPlan(userRoster, league);
   const eligiblePlayerIds = new Set(
-    applyEndgameRosterPlan(
+    applyRosterCompletionPlan(
       ordered.map((recommendation) => recommendation.player),
       userRoster,
       league,
     ).map((player) => player.id),
   );
-  const endgameReason =
-    endgamePlan.mode === "force"
-      ? `Endgame roster plan: ${endgamePlan.remainingPicks} pick${endgamePlan.remainingPicks === 1 ? " remains" : "s remain"}, reserved for missing ${endgamePlan.missingPositions.join(" and ")}`
-      : null;
+  const completionReason =
+    completionPlan.mode === "force-starters"
+      ? `Roster completion deadline: ${completionPlan.remainingPicks} picks remain; fill open ${completionPlan.openCoreSlotLabels.join(", ")} before the reserved specialist selections`
+      : completionPlan.mode === "force-specialists"
+        ? `Endgame roster plan: ${completionPlan.remainingPicks} pick${completionPlan.remainingPicks === 1 ? " remains" : "s remain"}, reserved for missing ${completionPlan.missingSpecialPositions.join(" and ")}`
+        : null;
 
   return ordered
     .filter((recommendation) => eligiblePlayerIds.has(recommendation.player.id))
     .map((recommendation) =>
-      endgameReason
+      completionReason
         ? {
             ...recommendation,
-            explanation: [endgameReason, ...recommendation.explanation],
+            explanation: [completionReason, ...recommendation.explanation],
           }
         : recommendation,
     )

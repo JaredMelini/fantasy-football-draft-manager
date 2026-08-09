@@ -151,7 +151,23 @@ test("reserves the final two roster picks for defense and kicker", () => {
   };
   const players = [...demoPlayers, kicker, defense];
   const teams = buildDemoTeams(yahooLeague.teamCount, 1);
-  const rosterBeforeFinalThree = demoPlayers.slice(0, 12);
+  const corePlayerIds = [
+    "joshallen",
+    "bijan",
+    "gibbs",
+    "chase",
+    "jefferson",
+    "lamb",
+    "bowers",
+  ];
+  const corePlayers = corePlayerIds.map(
+    (id) => demoPlayers.find((player) => player.id === id)!,
+  );
+  const depthPlayers = demoPlayers
+    .filter((player) => !corePlayerIds.includes(player.id))
+    .slice(0, 6);
+  const completeNonSpecialRoster = [...corePlayers, ...depthPlayers];
+  const rosterBeforeFinalThree = completeNonSpecialRoster.slice(0, 12);
   const earlyPicks = rosterBeforeFinalThree.map((player, index) => ({
     overall: index + 1,
     round: index + 1,
@@ -176,14 +192,14 @@ test("reserves the final two roster picks for defense and kicker", () => {
     ),
   );
 
-  const rosterWithTwoPicksLeft = [...rosterBeforeFinalThree, demoPlayers[12]];
+  const rosterWithTwoPicksLeft = completeNonSpecialRoster;
   const twoPickPicks = [
     ...earlyPicks,
     {
       overall: 98,
       round: 13,
       teamId: "user",
-      playerId: demoPlayers[12].id,
+      playerId: completeNonSpecialRoster[12].id,
     },
   ];
   const finalTwo = recommendPlayers({
@@ -232,6 +248,103 @@ test("reserves the final two roster picks for defense and kicker", () => {
 
   assert.ok(
     lastPick.every(({ player }) => player.positions.includes(stillMissing)),
+  );
+});
+
+test("waits on quarterback value but forces every starter before specialists", () => {
+  const template = demoPlayers.find((player) => player.id === "bijan")!;
+  const kicker = {
+    ...template,
+    id: "deadline-kicker",
+    name: "Deadline Kicker",
+    positions: ["K" as const],
+    positionRanks: { K: 1 },
+    positionTiers: { K: 1 },
+    sourceProjectedPoints: undefined,
+    projectedStats: {},
+  };
+  const defense = {
+    ...template,
+    id: "deadline-defense",
+    name: "Deadline Defense",
+    positions: ["DST" as const],
+    positionRanks: { DST: 1 },
+    positionTiers: { DST: 1 },
+    sourceProjectedPoints: undefined,
+    projectedStats: {},
+  };
+  const starterIds = [
+    "bijan",
+    "gibbs",
+    "chase",
+    "jefferson",
+    "lamb",
+    "bowers",
+  ];
+  const nonQuarterbacks = demoPlayers.filter(
+    (player) => !player.positions.includes("QB"),
+  );
+  const completedNonQuarterbackStarters = starterIds.map(
+    (id) => demoPlayers.find((player) => player.id === id)!,
+  );
+  const depthPlayers = nonQuarterbacks.filter(
+    (player) => !starterIds.includes(player.id),
+  );
+  const rosterWithFourPicksLeft = [
+    ...completedNonQuarterbackStarters,
+    ...depthPlayers.slice(0, 5),
+  ];
+  const flexPlayer = depthPlayers[5];
+  const rosterWithThreePicksLeft = [...rosterWithFourPicksLeft, flexPlayer];
+  const players = [...demoPlayers, kicker, defense];
+  const teams = buildDemoTeams(yahooLeague.teamCount, 1);
+  const recommendationsFor = (roster: typeof rosterWithFourPicksLeft) => {
+    const picks = roster.map((player, index) => ({
+      overall: index + 1,
+      round: index + 1,
+      teamId: "user",
+      playerId: player.id,
+    }));
+    return recommendPlayers({
+      players,
+      league: yahooLeague,
+      picks,
+      userRoster: roster,
+      currentOverall: 90 + roster.length,
+      picksUntilNextTurn: 15,
+      teams,
+      seed: `starter-deadline-${roster.length}`,
+      limit: players.length,
+    });
+  };
+
+  const beforeDeadline = recommendationsFor(rosterWithFourPicksLeft);
+  assert.ok(
+    beforeDeadline.some(
+      ({ player }) => !player.positions.includes("QB"),
+    ),
+  );
+  const quarterbackBeforeDeadline = beforeDeadline.find(({ player }) =>
+    player.positions.includes("QB"),
+  )!;
+  assert.ok(quarterbackBeforeDeadline.breakdown.rosterFit <= 1.5);
+  assert.ok(
+    quarterbackBeforeDeadline.explanation.some((reason) =>
+      reason.includes("enough later picks remain"),
+    ),
+  );
+
+  const atDeadline = recommendationsFor(rosterWithThreePicksLeft);
+  assert.ok(atDeadline.length > 0);
+  assert.ok(
+    atDeadline.every(({ player }) => player.positions.includes("QB")),
+  );
+  assert.ok(
+    atDeadline.every(({ explanation }) =>
+      explanation.some((reason) =>
+        reason.includes("Roster completion deadline"),
+      ),
+    ),
   );
 });
 

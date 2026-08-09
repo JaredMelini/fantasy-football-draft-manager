@@ -1,5 +1,8 @@
 import { draftRosterSize, teamForOverallPick } from "./draft";
-import { applyEndgameRosterPlan } from "./endgame";
+import {
+  applyRosterCompletionPlan,
+  getRosterCompletionPlan,
+} from "./endgame";
 import { assessCandidateRosterFit, assignRoster } from "./roster";
 import {
   calculateFantasyPoints,
@@ -191,6 +194,7 @@ function chooseFuturePlayer(input: {
     input.roster,
     input.league.rosterSlots,
   ).starters.length;
+  const completionPlan = getRosterCompletionPlan(input.roster, input.league);
   return [...input.pool]
     .map((player) => {
       const points = calculateFantasyPoints(player, input.league.scoringRules);
@@ -203,6 +207,16 @@ function chooseFuturePlayer(input: {
         input.league.rosterSlots,
         filledBefore,
       );
+      const position = primaryPosition(player);
+      const canWaitOnSingleStarter =
+        completionPlan.mode !== "force-starters" &&
+        (position === "QB" || position === "TE") &&
+        !input.roster.some((rostered) =>
+          rostered.positions.includes(position),
+        );
+      const rosterFitScore = canWaitOnSingleStarter
+        ? Math.min(rosterFit.score, 1.5)
+        : rosterFit.score;
       const needMultiplier =
         input.strategy === "needs"
           ? 2.2
@@ -220,7 +234,7 @@ function chooseFuturePlayer(input: {
         score:
           ((points - baseline) / 6) * valueWeight +
           personalRank +
-          rosterFit.score * needMultiplier -
+          rosterFitScore * needMultiplier -
           player.risk * riskWeight(input.riskTolerance) -
           byeCollision * 0.35,
       };
@@ -271,7 +285,7 @@ function summarizeCandidate(
       const availablePool = input.players.filter(
         (player) => !selectedIds.has(player.id) && !player.excluded,
       );
-      const pool = applyEndgameRosterPlan(
+      const pool = applyRosterCompletionPlan(
         availablePool,
         roster,
         input.league,
