@@ -1008,6 +1008,8 @@ tr.top-player td {
 }
 
 .import-panel {
+  max-height: calc(100vh - 112px);
+  overflow-y: auto;
   position: sticky;
   top: 94px;
 }
@@ -1403,12 +1405,167 @@ input {
   margin-top: 3px;
 }
 
+.adp-source-cell {
+  align-items: flex-start;
+  display: flex;
+  flex-direction: column;
+  min-width: 118px;
+}
+
+.adp-source-cell > strong {
+  color: var(--foreground);
+  font-size: 11px;
+}
+
+.adp-source-cell > small {
+  color: var(--primary);
+  font-size: 7px;
+  margin-top: 2px;
+}
+
+.adp-source-cell label {
+  align-items: center;
+  display: flex;
+  gap: 5px;
+  margin-top: 6px;
+}
+
+.adp-source-cell label span {
+  color: var(--muted-foreground);
+  font-size: 7px;
+  text-transform: uppercase;
+}
+
+.adp-source-cell .adp-editor {
+  padding: 4px 5px;
+  width: 54px;
+}
+
 .udk-import-card {
   background: linear-gradient(145deg, rgba(122, 162, 255, 0.1), rgba(67, 215, 199, 0.05));
   border: 1px solid rgba(122, 162, 255, 0.28);
   border-radius: 14px;
   margin: 16px 0 20px;
   padding: 14px;
+}
+
+.yahoo-adp-card {
+  background: linear-gradient(145deg, rgba(122, 162, 255, 0.12), rgba(192, 132, 252, 0.06));
+  border: 1px solid rgba(122, 162, 255, 0.3);
+  border-radius: 14px;
+  margin: 16px 0 20px;
+  padding: 14px;
+}
+
+.yahoo-adp-heading,
+.yahoo-adp-actions {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.yahoo-adp-heading > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.yahoo-adp-heading strong {
+  font-size: 12px;
+}
+
+.yahoo-adp-heading span,
+.yahoo-adp-card > p,
+.yahoo-import-steps {
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.adp-status {
+  background: rgba(148, 163, 184, 0.12);
+  border-radius: 999px;
+  color: var(--muted);
+  flex: 0 0 auto;
+  font-size: 7px !important;
+  font-weight: 900;
+  padding: 5px 7px;
+  text-transform: uppercase;
+}
+
+.adp-status.ready {
+  background: rgba(67, 215, 199, 0.12);
+  color: var(--teal);
+}
+
+.yahoo-import-steps {
+  margin: 10px 0 12px;
+  padding-left: 17px;
+}
+
+.yahoo-import-steps li + li {
+  margin-top: 4px;
+}
+
+.yahoo-adp-actions svg,
+.yahoo-drop svg {
+  height: 14px;
+  width: 14px;
+}
+
+.yahoo-link {
+  margin: 0;
+}
+
+.yahoo-drop {
+  margin: 12px 0 8px;
+}
+
+.yahoo-paste-details {
+  border-top: 1px solid var(--border);
+  margin-top: 12px;
+  padding-top: 10px;
+}
+
+.yahoo-paste-details summary {
+  color: var(--primary);
+  cursor: pointer;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.yahoo-paste-details textarea {
+  background: var(--input);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  color: var(--foreground);
+  font: inherit;
+  font-size: 8px;
+  height: 92px;
+  margin: 9px 0 7px;
+  padding: 9px;
+  resize: vertical;
+  width: 100%;
+}
+
+.yahoo-import-preview {
+  border-top: 1px solid var(--border);
+  margin-top: 12px;
+  padding-top: 4px;
+}
+
+.yahoo-summary {
+  margin-top: 10px;
+}
+
+.yahoo-review-list {
+  max-height: 420px;
+}
+
+.clear-yahoo-adp {
+  margin-top: 8px;
+  width: 100%;
 }
 
 .udk-import-card > div:first-child {
@@ -2296,6 +2453,8 @@ button.offline-path-card {
 
   .import-panel,
   .audit-panel {
+    max-height: none;
+    overflow: visible;
     position: static;
   }
 

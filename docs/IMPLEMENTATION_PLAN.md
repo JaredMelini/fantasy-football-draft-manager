@@ -23,7 +23,7 @@ The application is advisory. It will not submit picks or change a Yahoo roster.
 - **Probabilistic decisions:** ADP estimates whether a player will be available later; it never dictates player quality.
 - **Explainable:** each recommendation exposes its component values and alternatives.
 - **Resilient:** manual pick capture works whenever Yahoo synchronization is delayed or unavailable.
-- **Compliant:** use supported APIs, read-only access, minimal retention, required attribution, and no Yahoo page scraping.
+- **Compliant:** use supported APIs where available, read-only access, minimal retention, required attribution, and only explicit user-triggered local exports for Yahoo data not exposed by a documented API.
 
 ## 3. Supported formats
 
@@ -185,7 +185,7 @@ If live results are delayed, automatic mode will show its age and manual capture
 
 ### API-independent operating model
 
-Yahoo's documented Fantasy Sports endpoints require OAuth 2.0 for authorized league and user data. Public game metadata does not replace access to a private league's exact settings, teams, rosters, or draft state. The application therefore does not attempt to bypass approval through page scraping, browser automation, credential sharing, private network interception, or undocumented endpoints.
+Yahoo's documented Fantasy Sports endpoints require OAuth 2.0 for authorized league and user data. Public game metadata does not replace access to a private league's exact settings, teams, rosters, or draft state. The application therefore does not attempt to bypass approval through unattended scraping, credential sharing, private network interception, or undocumented endpoints. A user may explicitly export a visible Draft Analysis ADP table to a local CSV without sharing the Yahoo session with the app.
 
 The compliant no-API path provides most draft-day functionality through user-controlled data:
 
@@ -428,3 +428,4 @@ Official references: [Yahoo Fantasy API documentation](https://sports.yahoo.com/
 - [x] Endgame roster plan defers K and D/ST until the final two team selections, then guarantees both required positions when eligible players remain available.
 - [x] Removed all built-in starter rankings; fresh and reset workspaces begin with an empty board while previously imported UDK players are preserved during migration.
 - [x] Starter-deadline scheduling reserves enough future picks to fill every open lineup slot without treating an unfilled QB or TE as an automatic early-round priority.
+- [x] Yahoo Draft Analysis ADP imports remain separate from the personal UDK board, prefer Last 7 Days over All Drafts, and drive simulated opponent availability and selections with transparent fallbacks.

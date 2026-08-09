@@ -44,10 +44,30 @@ export function getPositionRankValue(
 }
 
 export function getMarketAdp(player: Player, teamCount: number): number {
+  if (player.yahooAdpRecent !== undefined && player.yahooAdpRecent > 0) {
+    return player.yahooAdpRecent;
+  }
+  if (player.yahooAdpAll !== undefined && player.yahooAdpAll > 0) {
+    return player.yahooAdpAll;
+  }
   const roundPick = player.sourceAdp?.match(/^(\d+)\.(\d{1,2})$/);
   if (!roundPick) return player.adp;
   const round = Number(roundPick[1]);
   const pick = Number(roundPick[2]);
   if (round < 1 || pick < 1) return player.adp;
   return (round - 1) * Math.max(1, teamCount) + pick;
+}
+
+export function getMarketAdpSource(player: Player):
+  | "Yahoo last 7 days"
+  | "Yahoo all drafts"
+  | "UDK"
+  | "Manual fallback" {
+  if (player.yahooAdpRecent !== undefined && player.yahooAdpRecent > 0) {
+    return "Yahoo last 7 days";
+  }
+  if (player.yahooAdpAll !== undefined && player.yahooAdpAll > 0) {
+    return "Yahoo all drafts";
+  }
+  return player.sourceAdp ? "UDK" : "Manual fallback";
 }

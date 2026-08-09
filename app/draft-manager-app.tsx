@@ -189,6 +189,7 @@ export function DraftManagerApp() {
           {view === "rankings" && (
             <RankingsStudio
               players={players}
+              teamCount={league.teamCount}
               onPlayersChange={(nextPlayers: Player[]) =>
                 saveState({ players: nextPlayers })
               }

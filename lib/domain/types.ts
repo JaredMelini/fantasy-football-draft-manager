@@ -95,6 +95,11 @@ export interface Player {
   rankingSource?: string;
   sourceAdp?: string;
   sourceProjectedPoints?: number;
+  yahooAdpAll?: number;
+  yahooAdpRecent?: number;
+  yahooPercentDrafted?: number;
+  yahooOverallRank?: number;
+  yahooAdpUpdatedAt?: string;
   excluded?: boolean;
   notes?: string;
   externalIds?: Record<string, string>;

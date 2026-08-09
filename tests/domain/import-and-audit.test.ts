@@ -11,6 +11,14 @@ import {
   tableFromRows,
 } from "../../lib/import/rankings";
 import {
+  applyYahooAdpImport,
+  buildYahooAdpImport,
+  clearYahooAdp,
+  parseYahooAdpText,
+  YAHOO_ADP_BOOKMARKLET,
+} from "../../lib/import/yahoo-adp";
+import { getMarketAdp, getMarketAdpSource } from "../../lib/domain/rankings";
+import {
   demoLeague,
   demoPlayers,
   yahooLeague,
@@ -166,6 +174,63 @@ test("accepts UDK kicker and defense exports without a points column", () => {
       (player) => player.sourceProjectedPoints === undefined,
     ),
   );
+});
+
+test("imports Yahoo ADP without changing personal rankings or UDK data", () => {
+  const table = parseYahooAdpText(
+    [
+      "Yahoo Player ID,Player,Team,Position,Yahoo Rank,Percent Drafted,All Drafts ADP,Last 7 Days ADP,Imported At",
+      "40055,Bijan Robinson,ATL,RB,2,100%,1.8,1.6,2026-08-09T12:00:00.000Z",
+      "40168,Puka Nacua,LAR,WR,4,100%,4.5,4.2,2026-08-09T12:00:00.000Z",
+    ].join("\n"),
+  );
+  const result = buildYahooAdpImport([table], demoPlayers);
+
+  assert.deepEqual(result.errors, []);
+  assert.equal(result.updates.length, 2);
+  assert.equal(result.reviewRows.length, 0);
+  const before = demoPlayers.find((player) => player.id === "bijan")!;
+  const imported = applyYahooAdpImport(demoPlayers, result.updates);
+  const bijan = imported.find((player) => player.id === "bijan")!;
+
+  assert.equal(bijan.userRank, before.userRank);
+  assert.deepEqual(bijan.positionRanks, before.positionRanks);
+  assert.equal(bijan.sourceAdp, before.sourceAdp);
+  assert.equal(bijan.sourceProjectedPoints, before.sourceProjectedPoints);
+  assert.equal(bijan.yahooAdpAll, 1.8);
+  assert.equal(bijan.yahooAdpRecent, 1.6);
+  assert.equal(bijan.yahooPercentDrafted, 100);
+  assert.equal(bijan.externalIds?.yahoo, "40055");
+  assert.equal(getMarketAdp(bijan, 8), 1.6);
+  assert.equal(getMarketAdpSource(bijan), "Yahoo last 7 days");
+  assert.equal(clearYahooAdp(imported).find((player) => player.id === "bijan")?.yahooAdpRecent, undefined);
+  assert.match(YAHOO_ADP_BOOKMARKLET, /^javascript:/);
+  assert.match(YAHOO_ADP_BOOKMARKLET, /All Drafts ADP/);
+});
+
+test("requires review for unmatched Yahoo ADP rows", () => {
+  const table = parseYahooAdpText(
+    "Player,Team,Position,All Drafts ADP,Last 7 Days ADP\nBjan Robinson,ATL,RB,1.8,1.6",
+  );
+  const result = buildYahooAdpImport([table], demoPlayers, "2026-08-09T12:00:00.000Z");
+
+  assert.equal(result.updates.length, 0);
+  assert.equal(result.reviewRows.length, 1);
+  assert.equal(result.reviewRows[0].suggestions[0].playerId, "bijan");
+});
+
+test("finds Yahoo column headers beneath the grouped table heading", () => {
+  const table = parseYahooAdpText(
+    [
+      "Fantasy\tBasic ADP\tPlus ADP",
+      "Player\tTeam\tPosition\tYahoo Rank\tPercent Drafted\tAll Drafts\tLast 7 Days",
+      "Bijan Robinson\tATL\tRB\t2\t100%\t1.8\t1.6",
+    ].join("\n"),
+  );
+  const result = buildYahooAdpImport([table], demoPlayers);
+
+  assert.equal(result.updates.length, 1);
+  assert.equal(result.updates[0].recentAdp, 1.6);
 });
 
 test("audits modeled settings and flags unsupported projection coverage", () => {

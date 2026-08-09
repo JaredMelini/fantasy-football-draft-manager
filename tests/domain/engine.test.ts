@@ -9,6 +9,7 @@ import {
   integrateRosterOutcomes,
 } from "../../lib/domain/candidate-rollout";
 import { recommendPlayers } from "../../lib/domain/recommendation";
+import { chooseOpponentPlayer } from "../../lib/domain/simulation";
 import {
   calculateFantasyPoints,
   estimateDynamicReplacementBaselines,
@@ -96,6 +97,40 @@ test("recommendations exclude drafted players and are ordered by utility", () =>
           recommendation.breakdown.total,
     ),
   );
+});
+
+test("mock opponents prefer Yahoo ADP over fallback ADP", () => {
+  const template = demoPlayers.find((player) => player.id === "bijan")!;
+  const staleFallbackFavorite = {
+    ...template,
+    id: "stale-fallback-favorite",
+    name: "Stale Fallback Favorite",
+    adp: 50,
+    yahooAdpRecent: 115,
+    userRank: 1,
+    positionRanks: { RB: 1 },
+  };
+  const yahooFavorite = {
+    ...template,
+    id: "yahoo-favorite",
+    name: "Yahoo Favorite",
+    adp: 115,
+    yahooAdpRecent: 50,
+    userRank: 2,
+    positionRanks: { RB: 2 },
+  };
+
+  const selected = chooseOpponentPlayer({
+    available: [staleFallbackFavorite, yahooFavorite],
+    roster: [],
+    league: yahooLeague,
+    overall: 50,
+    seed: "yahoo-adp-source",
+    teamId: "team-2",
+    strategy: "best-available",
+  });
+
+  assert.equal(selected?.id, yahooFavorite.id);
 });
 
 test("does not recommend an immediate second tight end over open starter needs", () => {

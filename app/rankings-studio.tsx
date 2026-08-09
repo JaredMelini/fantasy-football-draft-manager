@@ -19,14 +19,17 @@ import type {
 import type { Player, PlayerPosition } from "@/lib/domain/types";
 import {
   getMarketAdp,
+  getMarketAdpSource,
   getPositionRank,
   getPositionTier,
 } from "@/lib/domain/rankings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { YahooAdpImport } from "./yahoo-adp-import";
 
 interface RankingsStudioProps {
   players: Player[];
+  teamCount: number;
   onPlayersChange: (players: Player[]) => void;
   onReset: () => void;
   onRunBusyTask: (
@@ -64,6 +67,7 @@ type SortDirection = "ascending" | "descending";
 
 export function RankingsStudio({
   players,
+  teamCount,
   onPlayersChange,
   onReset,
   onRunBusyTask,
@@ -106,7 +110,7 @@ export function RankingsStudio({
       if (sortKey === "risk") return player.risk;
       if (sortKey === "upside") return player.upside;
       if (sortKey === "points") return player.sourceProjectedPoints;
-      if (sortKey === "adp") return getMarketAdp(player, 12);
+      if (sortKey === "adp") return getMarketAdp(player, teamCount);
       return undefined;
     };
     const textValue = (player: Player): string =>
@@ -132,7 +136,7 @@ export function RankingsStudio({
         if (right === undefined) return -1;
         return (left - right) * direction || a.name.localeCompare(b.name);
       });
-  }, [activePosition, deferredSearch, players, sortDirection, sortKey]);
+  }, [activePosition, deferredSearch, players, sortDirection, sortKey, teamCount]);
   const reviewState = useMemo(() => {
     const automaticIds = new Set(
       preview?.updates.map((update) => update.playerId) ?? [],
@@ -398,6 +402,11 @@ export function RankingsStudio({
             CSV, TSV, and XLSX files are read locally. Nothing is sent to Yahoo
             or uploaded to a server.
           </p>
+          <YahooAdpImport
+            players={players}
+            onPlayersChange={onPlayersChange}
+            onRunBusyTask={onRunBusyTask}
+          />
           <div className="udk-import-card">
             <div>
               <strong>Fantasy Footballers UDK</strong>
@@ -624,7 +633,7 @@ export function RankingsStudio({
                   {sortableHeader("risk", "Risk")}
                   {sortableHeader("upside", "Upside")}
                   {sortableHeader("points", "UDK pts")}
-                  {sortableHeader("adp", "Market ADP")}
+                  {sortableHeader("adp", "Opponent ADP")}
                   {sortableHeader("notes", "Personal note")}
                 </tr>
               </thead>
@@ -655,7 +664,16 @@ export function RankingsStudio({
                     <td>{player.risk === undefined ? "—" : (player.risk * 10).toFixed(1)}</td>
                     <td>{player.upside === undefined ? "—" : (player.upside * 10).toFixed(1)}</td>
                     <td>{player.sourceProjectedPoints === undefined ? "—" : player.sourceProjectedPoints.toFixed(1)}</td>
-                    <td><input className="number-editor adp-editor" type="number" min="1" step="0.1" value={player.adp} aria-label={`${player.name} ADP`} onChange={(event) => updatePlayer(player.id, { adp: Math.max(1, Number(event.target.value)) })} /></td>
+                    <td>
+                      <div className="adp-source-cell">
+                        <strong>{getMarketAdp(player, teamCount).toFixed(1)}</strong>
+                        <small>{getMarketAdpSource(player)}</small>
+                        <label>
+                          <span>Fallback</span>
+                          <input className="number-editor adp-editor" type="number" min="1" step="0.1" value={player.adp} aria-label={`${player.name} fallback ADP`} onChange={(event) => updatePlayer(player.id, { adp: Math.max(1, Number(event.target.value)) })} />
+                        </label>
+                      </div>
+                    </td>
                     <td><input className="note-editor" value={player.notes ?? ""} aria-label={`${player.name} note`} placeholder="Add your take…" onChange={(event) => updatePlayer(player.id, { notes: event.target.value })} /></td>
                   </tr>
                   </Fragment>
