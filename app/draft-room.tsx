@@ -22,6 +22,7 @@ import { recommendPlayers } from "@/lib/domain/recommendation";
 import { assignRoster } from "@/lib/domain/roster";
 import { calculateFantasyPoints } from "@/lib/domain/scoring";
 import {
+  getMarketAdp,
   getPositionRank,
   getPositionTier,
   primaryPosition,
@@ -63,6 +64,9 @@ function decisionLabel(decision: RecommendationDecision): string {
   return "Can wait";
 }
 
+type PlayerBoardSort = "decision" | "projection" | "adp";
+type SortDirection = "ascending" | "descending";
+
 interface DraftRoomProps {
   league: LeagueSettings;
   players: Player[];
@@ -90,6 +94,9 @@ export function DraftRoom({
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [position, setPosition] = useState<PlayerPosition | "ALL">("ALL");
+  const [boardSort, setBoardSort] = useState<PlayerBoardSort>("decision");
+  const [boardSortDirection, setBoardSortDirection] =
+    useState<SortDirection>("descending");
   const [riskTolerance, setRiskTolerance] = useState<RiskTolerance>("balanced");
   const [showQuickCapture, setShowQuickCapture] = useState(false);
   const [captureText, setCaptureText] = useState("");
@@ -249,14 +256,45 @@ export function DraftRoom({
             .toLowerCase()
             .includes(deferredSearch.toLowerCase()),
         )
-        .sort((a, b) =>
-          position === "ALL"
+        .sort((a, b) => {
+          const direction = boardSortDirection === "ascending" ? 1 : -1;
+          const positionRankDifference =
+            getPositionRank(a, players, primaryPosition(a)) -
+            getPositionRank(b, players, primaryPosition(b));
+
+          if (boardSort === "projection") {
+            return (
+              (calculateFantasyPoints(a, league.scoringRules) -
+                calculateFantasyPoints(b, league.scoringRules)) *
+                direction || positionRankDifference
+            );
+          }
+
+          if (boardSort === "adp") {
+            return (
+              (getMarketAdp(a, league.teamCount) -
+                getMarketAdp(b, league.teamCount)) *
+                direction || positionRankDifference
+            );
+          }
+
+          return position === "ALL"
             ? (recommendationScores.get(b.id) ?? -Infinity) -
-              (recommendationScores.get(a.id) ?? -Infinity)
+                (recommendationScores.get(a.id) ?? -Infinity)
             : getPositionRank(a, players, position) -
-              getPositionRank(b, players, position),
-        ),
-    [deferredSearch, draftedIds, players, position, recommendationScores],
+                getPositionRank(b, players, position);
+        }),
+    [
+      boardSort,
+      boardSortDirection,
+      deferredSearch,
+      draftedIds,
+      league.scoringRules,
+      league.teamCount,
+      players,
+      position,
+      recommendationScores,
+    ],
   );
   const selected = selectedPlayerId
     ? recommendations.find(
@@ -320,6 +358,18 @@ export function DraftRoom({
       ]);
       setSelectedPlayerId(null);
     });
+  }
+
+  function toggleBoardSort(nextSort: Exclude<PlayerBoardSort, "decision">) {
+    if (boardSort === nextSort) {
+      setBoardSortDirection((current) =>
+        current === "ascending" ? "descending" : "ascending",
+      );
+      return;
+    }
+
+    setBoardSort(nextSort);
+    setBoardSortDirection(nextSort === "adp" ? "ascending" : "descending");
   }
 
   function simulateOne() {
@@ -558,11 +608,34 @@ export function DraftRoom({
               <option value="ALL">All positions</option>
               {(["QB", "RB", "WR", "TE", "K", "DST"] as PlayerPosition[]).map((item) => <option value={item} key={item}>{item}</option>)}
             </select>
-            <span>{availablePlayers.length} available</span>
+            <div className="board-status">
+              <span>{availablePlayers.length} available</span>
+              {boardSort !== "decision" && (
+                <button type="button" onClick={() => setBoardSort("decision")}>Decision order</button>
+              )}
+            </div>
           </div>
           <div className="table-wrap draft-player-table">
             <table>
-              <thead><tr><th>Pos. rank</th><th>Player</th><th>Proj.</th><th>ADP</th><th><span className="sr-only">Action</span></th></tr></thead>
+              <thead>
+                <tr>
+                  <th>Pos. rank</th>
+                  <th>Player</th>
+                  <th aria-sort={boardSort === "projection" ? boardSortDirection : "none"}>
+                    <button className={`sortable-header ${boardSort === "projection" ? "active" : ""}`} type="button" onClick={() => toggleBoardSort("projection")} aria-label="Sort by projected points">
+                      <span>Proj.</span>
+                      <span className="sort-indicator" aria-hidden="true">{boardSort === "projection" ? (boardSortDirection === "ascending" ? "↑" : "↓") : "↕"}</span>
+                    </button>
+                  </th>
+                  <th aria-sort={boardSort === "adp" ? boardSortDirection : "none"}>
+                    <button className={`sortable-header ${boardSort === "adp" ? "active" : ""}`} type="button" onClick={() => toggleBoardSort("adp")} aria-label="Sort by ADP">
+                      <span>ADP</span>
+                      <span className="sort-indicator" aria-hidden="true">{boardSort === "adp" ? (boardSortDirection === "ascending" ? "↑" : "↓") : "↕"}</span>
+                    </button>
+                  </th>
+                  <th><span className="sr-only">Action</span></th>
+                </tr>
+              </thead>
               <tbody>
                 {availablePlayers.slice(0, 30).map((player) => {
                   const recommendation = recommendations.find((item) => item.player.id === player.id);

@@ -634,10 +634,31 @@ a:focus-visible {
   padding: 8px 9px;
 }
 
-.board-filters > span {
+.board-status {
+  align-items: flex-end;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.board-status span {
   color: var(--muted);
   font-size: 9px;
   font-weight: 800;
+}
+
+.board-status button {
+  background: transparent;
+  border: 0;
+  color: var(--primary);
+  cursor: pointer;
+  font-size: 9px;
+  font-weight: 800;
+  padding: 0;
+}
+
+.board-status button:hover {
+  text-decoration: underline;
 }
 
 .draft-player-table {
