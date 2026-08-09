@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
 import { Check, ClipboardCopy, Download } from "lucide-react";
 import type { Player } from "@/lib/domain/types";
@@ -25,6 +25,21 @@ interface YahooAdpImportProps {
 
 const ignoredValue = "__ignored__";
 
+function copyWithTemporaryInput(text: string): boolean {
+  const input = document.createElement("textarea");
+  input.value = text;
+  input.readOnly = true;
+  input.setAttribute("aria-hidden", "true");
+  input.style.position = "fixed";
+  input.style.left = "-9999px";
+  input.style.opacity = "0";
+  document.body.appendChild(input);
+  input.select();
+  const copied = document.execCommand("copy");
+  input.remove();
+  return copied;
+}
+
 export function YahooAdpImport({
   players,
   onPlayersChange,
@@ -38,6 +53,8 @@ export function YahooAdpImport({
   const [copied, setCopied] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [decisions, setDecisions] = useState<Record<string, string>>({});
+  const manualInstallRef = useRef<HTMLDetailsElement>(null);
+  const bookmarkletFieldRef = useRef<HTMLTextAreaElement>(null);
 
   const preview = useMemo(
     () => (tables.length > 0 ? buildYahooAdpImport(tables, players) : null),
@@ -136,12 +153,34 @@ export function YahooAdpImport({
   }
 
   async function copyBookmarklet() {
+    setError("");
+    let didCopy = false;
     try {
-      await navigator.clipboard.writeText(YAHOO_ADP_BOOKMARKLET);
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(YAHOO_ADP_BOOKMARKLET);
+        didCopy = true;
+      }
+    } catch {
+      // Some localhost browser surfaces expose Clipboard but block writeText.
+    }
+    if (!didCopy) {
+      try {
+        didCopy = copyWithTemporaryInput(YAHOO_ADP_BOOKMARKLET);
+      } catch {
+        didCopy = false;
+      }
+    }
+    if (didCopy) {
       setCopied(true);
       window.setTimeout(() => setCopied(false), 2400);
-    } catch {
-      setError("Clipboard access was blocked. Try again from localhost in a secure browser tab.");
+    } else {
+      if (manualInstallRef.current) {
+        manualInstallRef.current.open = true;
+      }
+      window.setTimeout(() => bookmarkletFieldRef.current?.focus(), 0);
+      setError(
+        "Clipboard access was blocked. The full bookmark URL is selected below; press Ctrl+C to copy it.",
+      );
     }
   }
 
@@ -214,6 +253,23 @@ export function YahooAdpImport({
           Open Yahoo ADP ↗
         </a>
       </div>
+      <details
+        className="yahoo-paste-details yahoo-bookmark-details"
+        ref={manualInstallRef}
+      >
+        <summary>Manual bookmark installation</summary>
+        <p>
+          If Copy bookmarklet is blocked, select this entire URL and paste it
+          into the bookmark&apos;s URL field.
+        </p>
+        <textarea
+          aria-label="Bookmarklet URL"
+          readOnly
+          ref={bookmarkletFieldRef}
+          value={YAHOO_ADP_BOOKMARKLET}
+          onFocus={(event) => event.currentTarget.select()}
+        />
+      </details>
       <label className="file-drop compact-drop yahoo-drop">
         <input type="file" multiple accept=".csv,.tsv,.txt" onChange={handleFiles} />
         <Download aria-hidden="true" />

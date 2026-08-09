@@ -212,6 +212,8 @@ test("imports Yahoo ADP without changing personal rankings or UDK data", () => {
   assert.match(YAHOO_ADP_BOOKMARKLET, /^javascript:\(async\(\)=>/);
   assert.match(YAHOO_ADP_BOOKMARKLET, /All Drafts ADP/);
   assert.doesNotMatch(YAHOO_ADP_BOOKMARKLET, /a\?\.textContent/);
+  assert.match(YAHOO_ADP_BOOKMARKLET, /\.catch\(error=>alert\(/);
+  assert.match(YAHOO_ADP_BOOKMARKLET, /;void 0$/);
 });
 
 test("extracts a player from Yahoo's current div-based player cell", () => {
@@ -232,6 +234,101 @@ test("extracts a player from Yahoo's current div-based player cell", () => {
     team: "DEN",
     position: "DST",
   });
+});
+
+test("the installed Yahoo bookmarklet creates a populated CSV download", () => {
+  const headers = [
+    "Player",
+    "Rank",
+    "Pos Rank",
+    "CER",
+    "%Drafted",
+    "Preseason",
+    "All Drafts",
+    "Last 7 Days",
+    "Preseason",
+    "All Drafts",
+    "Last 7 Days",
+  ];
+  const playerLink = {
+    getAttribute: () =>
+      "https://sports.yahoo.com/nfl/players/40059/news/",
+  };
+  const cells = [
+    {
+      innerText: "Jahmyr Gibbs\nDet - RB\nQ",
+      querySelector: () => playerLink,
+    },
+    ...["1", "RB1", "-", "100%", "1.2", "1.3", "1.1", "-", "-", "-"].map(
+      (innerText) => ({ innerText }),
+    ),
+  ];
+  const table = {
+    innerText: "Fantasy Basic ADP Plus ADP All Drafts",
+    querySelectorAll: (selector: string) => {
+      if (selector === "thead tr") {
+        return [
+          {
+            querySelectorAll: () =>
+              headers.map((innerText) => ({ innerText })),
+          },
+        ];
+      }
+      if (selector === "tbody tr") {
+        return [{ querySelectorAll: () => cells }];
+      }
+      return [];
+    },
+  };
+  let downloadClicked = false;
+  const anchor = {
+    href: "",
+    download: "",
+    click: () => {
+      downloadClicked = true;
+    },
+  };
+  const documentMock = {
+    querySelectorAll: () => [table],
+    createElement: () => anchor,
+  };
+  const alerts: string[] = [];
+  let exportedCsv = "";
+  class TestBlob {
+    constructor(parts: string[]) {
+      exportedCsv = parts.join("");
+    }
+  }
+  class TestUrl extends URL {
+    static createObjectURL() {
+      return "blob:yahoo-adp-test";
+    }
+
+    static revokeObjectURL() {}
+  }
+  const runBookmarklet = Function(
+    "document",
+    "alert",
+    "Blob",
+    "URL",
+    "location",
+    "setTimeout",
+    YAHOO_ADP_BOOKMARKLET.slice("javascript:".length),
+  );
+
+  runBookmarklet(
+    documentMock,
+    (message: string) => alerts.push(message),
+    TestBlob,
+    TestUrl,
+    { href: "https://football.fantasysports.yahoo.com/f1/595211/draftanalysis?pos=ALL" },
+    (callback: () => void) => callback(),
+  );
+
+  assert.equal(downloadClicked, true);
+  assert.match(anchor.download, /^yahoo-adp-all-\d{4}-\d{2}-\d{2}\.csv$/);
+  assert.match(exportedCsv, /"40059","Jahmyr Gibbs","DET","RB"/);
+  assert.deepEqual(alerts, []);
 });
 
 test("requires review for unmatched Yahoo ADP rows", () => {
