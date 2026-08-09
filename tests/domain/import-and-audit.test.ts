@@ -14,6 +14,7 @@ import {
   applyYahooAdpImport,
   buildYahooAdpImport,
   clearYahooAdp,
+  parseYahooAdpPlayerCell,
   parseYahooAdpText,
   YAHOO_ADP_BOOKMARKLET,
 } from "../../lib/import/yahoo-adp";
@@ -208,7 +209,29 @@ test("imports Yahoo ADP without changing personal rankings or UDK data", () => {
   assert.equal(bijan.yahooAdpRecentUpdatedAt, "2026-08-09T12:00:00.000Z");
   assert.equal(clearYahooAdp(imported).find((player) => player.id === "bijan")?.yahooAdpRecent, undefined);
   assert.match(YAHOO_ADP_BOOKMARKLET, /^javascript:/);
+  assert.match(YAHOO_ADP_BOOKMARKLET, /^javascript:\(async\(\)=>/);
   assert.match(YAHOO_ADP_BOOKMARKLET, /All Drafts ADP/);
+  assert.doesNotMatch(YAHOO_ADP_BOOKMARKLET, /a\?\.textContent/);
+});
+
+test("extracts a player from Yahoo's current div-based player cell", () => {
+  assert.deepEqual(
+    parseYahooAdpPlayerCell(
+      "Jahmyr Gibbs\nDet - RB\nQ",
+      "https://sports.yahoo.com/nfl/players/40059/news/",
+    ),
+    {
+      name: "Jahmyr Gibbs",
+      team: "DET",
+      position: "RB",
+      yahooPlayerId: "40059",
+    },
+  );
+  assert.deepEqual(parseYahooAdpPlayerCell("Denver Broncos\nDen - DEF"), {
+    name: "Denver Broncos",
+    team: "DEN",
+    position: "DST",
+  });
 });
 
 test("requires review for unmatched Yahoo ADP rows", () => {

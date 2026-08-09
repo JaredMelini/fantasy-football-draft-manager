@@ -194,7 +194,10 @@ export function YahooAdpImport({
       </p>
       <ol className="yahoo-import-steps">
         <li>Copy the bookmarklet code and save it as a browser bookmark URL.</li>
-        <li>Open Yahoo Draft Analysis, choose a position, then click the bookmark.</li>
+        <li>
+          Open Yahoo Draft Analysis, choose a position, wait until player names
+          and ADP values appear, then click the bookmark.
+        </li>
         <li>Repeat for each position and select all downloaded CSVs below.</li>
       </ol>
       <div className="yahoo-adp-actions">

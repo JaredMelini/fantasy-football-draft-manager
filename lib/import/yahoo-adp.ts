@@ -405,4 +405,42 @@ export function parseYahooAdpText(text: string): RankingTable {
     : parsed;
 }
 
-export const YAHOO_ADP_BOOKMARKLET = `javascript:(()=>{const t=[...document.querySelectorAll('table')].find(x=>/Basic ADP/i.test(x.innerText)&&/All Drafts/i.test(x.innerText));if(!t){alert('Open Yahoo Fantasy Draft Analysis first.');return}const h=[...t.querySelectorAll('thead tr')].pop();const hs=h?[...h.querySelectorAll('th')].map(x=>(x.innerText||'').trim()):[];const ix=n=>hs.findIndex(x=>x.toLowerCase()===n.toLowerCase());const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';const clean=c=>(c?.innerText||'').trim();const rows=[...t.querySelectorAll('tbody tr')].map(r=>{const c=[...r.querySelectorAll('td')];const pc=c[ix('Player')>=0?ix('Player'):0];const a=pc?.querySelector('a[href*="/nfl/players/"],a[href*="/nfl/teams/"]');const name=(a?.textContent||'').trim();const m=(pc?.innerText||'').match(/\\b([A-Za-z]{2,3})\\s*-\\s*(QB|RB|WR|TE|K|DEF)\\b/i);if(!name||!m)return null;const id=((a?.getAttribute('href')||'').match(/\\/players\\/(\\d+)/)||[])[1]||'';return[id,name,m[1].toUpperCase(),m[2].toUpperCase(),clean(c[ix('Rank')]),clean(c[ix('%Drafted')]),clean(c[ix('All Drafts')]),clean(c[ix('Last 7 Days')]),new Date().toISOString()] }).filter(Boolean);if(!rows.length){alert('No Yahoo ADP rows were found.');return}const data=[['Yahoo Player ID','Player','Team','Position','Yahoo Rank','Percent Drafted','All Drafts ADP','Last 7 Days ADP','Imported At'],...rows].map(r=>r.map(q).join(',')).join('\\n');const b=new Blob([data],{type:'text/csv'});const a=document.createElement('a');const pos=(new URL(location.href).searchParams.get('pos')||rows[0][3]||'all').toLowerCase().replace(/[^a-z0-9]+/g,'-');a.href=URL.createObjectURL(b);a.download='yahoo-adp-'+pos+'-'+new Date().toISOString().slice(0,10)+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)})();`;
+export interface YahooAdpPlayerCell {
+  name: string;
+  team: string;
+  position: PlayerPosition;
+  yahooPlayerId?: string;
+}
+
+/**
+ * Parses the visible text in Yahoo's Player cell. Yahoo currently renders the
+ * name as plain div text and uses the player link only for its notes icon.
+ */
+export function parseYahooAdpPlayerCell(
+  text: string,
+  playerHref = "",
+): YahooAdpPlayerCell | undefined {
+  const lines = text
+    .split(/\r?\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const metadataPattern =
+    /\b([A-Za-z]{2,3})\s*-\s*(QB|RB|WR|TE|K|DEF|DST|D\/ST)\b/i;
+  const metadataIndex = lines.findIndex((line) => metadataPattern.test(line));
+  if (metadataIndex < 1) return undefined;
+
+  const metadata = lines[metadataIndex].match(metadataPattern);
+  const position = normalizePosition(metadata?.[2]);
+  const name = lines.slice(0, metadataIndex).join(" ").trim();
+  if (!metadata || !position || !name) return undefined;
+
+  const yahooPlayerId = playerHref.match(/\/players\/(\d+)/)?.[1];
+  return {
+    name,
+    team: metadata[1].toUpperCase(),
+    position,
+    ...(yahooPlayerId ? { yahooPlayerId } : {}),
+  };
+}
+
+export const YAHOO_ADP_BOOKMARKLET = `javascript:(async()=>{const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));const findTable=()=>[...document.querySelectorAll('table')].find(x=>/Basic ADP/i.test(x.innerText||'')&&/All Drafts/i.test(x.innerText||''));const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';const clean=c=>(c?.innerText||'').trim();const extract=t=>{const h=[...t.querySelectorAll('thead tr')].pop();const hs=h?[...h.querySelectorAll('th')].map(x=>clean(x)):[];const key=v=>v.replace(/\\s+/g,'').toLowerCase();const ix=n=>hs.findIndex(x=>key(x)===key(n));const value=(c,n)=>{const i=ix(n);return i>=0?clean(c[i]):''};return[...t.querySelectorAll('tbody tr')].map(r=>{const c=[...r.querySelectorAll('td')];if(c.length<2)return null;const pi=ix('Player');const pc=c[pi>=0?pi:0];const cell=clean(pc);const lines=cell.split(/\\n+/).map(x=>x.trim()).filter(Boolean);const pattern=/\\b([A-Za-z]{2,3})\\s*-\\s*(QB|RB|WR|TE|K|DEF|DST|D\\/ST)\\b/i;const mi=lines.findIndex(x=>pattern.test(x));const m=mi>=0?lines[mi].match(pattern):null;const name=mi>0?lines.slice(0,mi).join(' ').trim():'';if(!name||!m)return null;const link=pc?.querySelector('a[href*="/nfl/players/"],a[href*="/nfl/teams/"]');const id=((link?.getAttribute('href')||'').match(/\\/players\\/(\\d+)/)||[])[1]||'';const position=/^(DEF|DST|D\\/ST)$/i.test(m[2])?'DST':m[2].toUpperCase();return[id,name,m[1].toUpperCase(),position,value(c,'Rank'),value(c,'%Drafted'),value(c,'All Drafts'),value(c,'Last 7 Days'),new Date().toISOString()]}).filter(Boolean)};let table;let rows=[];for(let attempt=0;attempt<24;attempt+=1){table=findTable();if(table){rows=extract(table);if(rows.length)break}await sleep(250)}if(!table){alert('Open Yahoo Fantasy Draft Analysis first.');return}if(!rows.length){alert('Yahoo ADP is still loading. Wait until player names and ADP values are visible, then try the bookmark again.');return}const data=[['Yahoo Player ID','Player','Team','Position','Yahoo Rank','Percent Drafted','All Drafts ADP','Last 7 Days ADP','Imported At'],...rows].map(r=>r.map(q).join(',')).join('\\n');const b=new Blob([data],{type:'text/csv'});const a=document.createElement('a');const pos=(new URL(location.href).searchParams.get('pos')||rows[0][3]||'all').toLowerCase().replace(/[^a-z0-9]+/g,'-');a.href=URL.createObjectURL(b);a.download='yahoo-adp-'+pos+'-'+new Date().toISOString().slice(0,10)+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)})();`;
